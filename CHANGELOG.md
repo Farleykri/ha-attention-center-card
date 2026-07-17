@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- Added entity and inherited device label inclusion, exclusion, and rule targeting.
+- Added accessible grouping by severity, area, source, or device with filters, limits, collapsed groups, and hidden issue counts.
+- Added dynamic battery and numeric rule thresholds backed by Home Assistant entities with visible diagnostics.
+- Added in-memory numeric hysteresis using `clear_below` and `clear_above`.
+- Added validated inline More Info, navigation, URL, and service-call actions.
+- Added separate unknown/unavailable policies, duration thresholds, severities, and startup grace.
+- Expanded the visual editor while preserving advanced configuration values.
+- Added Version 0.1 regression coverage and Version 0.2 behavior tests and examples.
+
 ## 0.1.0
 
 - Initial Version 1 release.

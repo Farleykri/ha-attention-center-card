@@ -1,0 +1,20 @@
+type: custom:attention-center-card
+title: House Attention Center
+
+detect_unavailable: true
+detect_batteries: true
+battery_warning: 30
+battery_critical: 15
+
+display_mode: full
+empty_state: message
+
+exclude:
+  domains:
+    - button
+    - update
+  entities:
+    - sensor.time
+    - sensor.date
+  patterns:
+    - sensor.*_last_seen

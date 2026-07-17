@@ -4,7 +4,7 @@ import type {
   ExclusionConfig,
   HomeAssistant,
 } from "./types";
-import { getDomain, getEntityAreaIdentifiers, getEntityDeviceId } from "./hass";
+import { getDomain, getEntityAreaIdentifiers, getEntityDeviceId, getEntityLabels } from "./hass";
 
 export function compileEntityPattern(pattern: string): EntityPatternMatcher {
   const trimmed = pattern.trim();
@@ -37,6 +37,7 @@ export function compileExclusions(exclude: Required<ExclusionConfig>): CompiledE
     devices: new Set(exclude.devices),
     areas: new Set(exclude.areas),
     areaNames: new Set(exclude.areas.map((area) => area.toLowerCase())),
+    labels: new Set(exclude.labels),
     patterns: exclude.patterns.map(compileEntityPattern),
   };
 }
@@ -55,6 +56,9 @@ export function isEntityExcluded(
   if (exclusions.patterns.some((matcher) => entityMatchesPattern(entityId, matcher))) {
     return true;
   }
+  if (getEntityLabels(hass, entityId).some((label) => exclusions.labels.has(label))) {
+    return true;
+  }
 
   const deviceId = getEntityDeviceId(hass, entityId);
   if (deviceId && exclusions.devices.has(deviceId)) {
@@ -64,6 +68,24 @@ export function isEntityExcluded(
   const areaIdentifiers = getEntityAreaIdentifiers(hass, entityId);
   return areaIdentifiers.some(
     (area) => exclusions.areas.has(area) || exclusions.areaNames.has(area.toLowerCase()),
+  );
+}
+
+export function isEntityIncludedByLabels(
+  entityId: string,
+  hass: HomeAssistant,
+  labels: string[],
+): boolean {
+  if (labels.length === 0) {
+    return true;
+  }
+  const includedLabels = new Set(labels);
+  return getEntityLabels(hass, entityId).some((label) => includedLabels.has(label));
+}
+
+export function getMatchingEntityIdsByLabel(hass: HomeAssistant, label: string): string[] {
+  return Object.keys(hass.states).filter((entityId) =>
+    getEntityLabels(hass, entityId).includes(label),
   );
 }
 

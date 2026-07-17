@@ -1,21 +1,25 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
+import { actionLabel, executeIssueAction, navigateHomeAssistant } from "./actions";
 import { DEFAULT_CONFIG, configKey, normalizeConfig } from "./config";
 import {
   createEvaluationPlan,
   createRuleDurationMemory,
-  evaluateAttentionIssues,
+  evaluateAttentionResult,
 } from "./evaluate";
 import { formatDurationSince } from "./duration";
+import { prepareIssuePresentation, type IssueGroup, type IssuePresentation } from "./presentation";
 import { countBySeverity } from "./severity";
 import { cardStyles } from "./styles";
 import type {
   AttentionCenterCardConfig,
+  AttentionDiagnostic,
   AttentionIssue,
   EvaluationPlan,
   HomeAssistant,
   NormalizedAttentionCenterCardConfig,
+  IssueAction,
   Severity,
 } from "./types";
 
@@ -30,7 +34,15 @@ export class AttentionCenterCard extends LitElement {
   public hass?: HomeAssistant;
 
   @state()
-  private _issues: AttentionIssue[] = [];
+  private _diagnostics: AttentionDiagnostic[] = [];
+
+  @state()
+  private _presentation: IssuePresentation = {
+    matchingIssues: [],
+    visibleIssues: [],
+    groups: [],
+    hiddenCount: 0,
+  };
 
   private _config?: NormalizedAttentionCenterCardConfig;
   private _plan?: EvaluationPlan;
@@ -42,6 +54,10 @@ export class AttentionCenterCard extends LitElement {
   private _lastAreasRef?: HomeAssistant["areas"];
   private _ruleDurationMemory = createRuleDurationMemory();
   private _minuteTimer?: number;
+  private _connectedAtMs?: number;
+
+  @state()
+  private _actionError?: string;
 
   @state()
   private _nowMs = Date.now();
@@ -57,6 +73,9 @@ export class AttentionCenterCard extends LitElement {
     this._lastDevicesRef = undefined;
     this._lastAreasRef = undefined;
     this._ruleDurationMemory = createRuleDurationMemory();
+    this._presentation = prepareIssuePresentation([], normalized);
+    this._diagnostics = [];
+    this._actionError = undefined;
     this._recalculateIssues();
   }
 
@@ -81,18 +100,20 @@ export class AttentionCenterCard extends LitElement {
     if (!this._config) {
       return 1;
     }
-    if (this._config.empty_state === "hide" && this._issues.length === 0) {
+    if (this._config.empty_state === "hide" && this._presentation.matchingIssues.length === 0) {
       return 1;
     }
     if (this._config.display_mode === "summary") {
       return 2;
     }
-    return Math.min(6, Math.max(2, this._issues.length + 1));
+    return Math.min(8, Math.max(2, this._presentation.visibleIssues.length + 1));
   }
 
   public override connectedCallback(): void {
     super.connectedCallback();
+    this._connectedAtMs ??= Date.now();
     this._startMinuteTimer();
+    this._recalculateIssues(true);
   }
 
   public override disconnectedCallback(): void {
@@ -111,12 +132,12 @@ export class AttentionCenterCard extends LitElement {
       return html``;
     }
 
-    if (this._issues.length === 0 && this._config.empty_state === "hide") {
+    if (this._presentation.matchingIssues.length === 0 && this._config.empty_state === "hide") {
       return nothing;
     }
 
-    const counts = countBySeverity(this._issues);
-    const total = this._issues.length;
+    const counts = countBySeverity(this._presentation.matchingIssues);
+    const total = this._presentation.matchingIssues.length;
 
     return html`
       <ha-card>
@@ -131,7 +152,7 @@ export class AttentionCenterCard extends LitElement {
             ${this._renderCountChip("info", counts.info)}
           </div>
         </div>
-        ${this._renderBody()}
+        ${this._renderDiagnostics()} ${this._renderBody()}
       </ha-card>
     `;
   }
@@ -141,7 +162,7 @@ export class AttentionCenterCard extends LitElement {
       return html``;
     }
 
-    const counts = countBySeverity(this._issues);
+    const counts = countBySeverity(this._presentation.matchingIssues);
     if (this._config.display_mode === "summary") {
       return html`
         <div class="summary" role="list" aria-label="Issue summary">
@@ -149,53 +170,145 @@ export class AttentionCenterCard extends LitElement {
           ${this._renderSummaryCell("warning", counts.warning)}
           ${this._renderSummaryCell("info", counts.info)}
         </div>
-        ${this._issues.length === 0 ? this._renderEmptyState() : nothing}
+        ${this._presentation.matchingIssues.length === 0 ? this._renderEmptyState() : nothing}
+        ${this._renderHiddenCount()}
       `;
     }
 
-    if (this._issues.length === 0) {
+    if (this._presentation.matchingIssues.length === 0) {
       return this._renderEmptyState();
+    }
+
+    if (this._config.group_by !== "none") {
+      return html`
+        <div class="groups">
+          ${repeat(
+            this._presentation.groups,
+            (group) => group.key,
+            (group) => this._renderGroup(group),
+          )}
+        </div>
+        ${this._renderHiddenCount()}
+      `;
     }
 
     return html`
       <div class="list ${this._config.display_mode === "compact" ? "compact" : ""}" role="list">
         ${repeat(
-          this._issues,
+          this._presentation.visibleIssues,
           (issue) => issue.id,
           (issue) => this._renderIssue(issue),
         )}
       </div>
+      ${this._renderHiddenCount()}
+    `;
+  }
+
+  private _renderGroup(group: IssueGroup): TemplateResult {
+    if (!this._config) {
+      return html``;
+    }
+    const collapsed =
+      this._config.collapsed_groups.includes(group.key) ||
+      this._config.collapsed_groups.includes(group.label);
+    return html`
+      <details class="issue-group" .open=${!collapsed}>
+        <summary>
+          <span class="group-heading" role="heading" aria-level="3">${group.label}</span>
+          <span class="group-count" aria-label="${group.total} active issues">${group.total}</span>
+        </summary>
+        <div class="list ${this._config.display_mode === "compact" ? "compact" : ""}" role="list">
+          ${repeat(
+            group.issues,
+            (issue) => issue.id,
+            (issue) => this._renderIssue(issue),
+          )}
+        </div>
+      </details>
     `;
   }
 
   private _renderIssue(issue: AttentionIssue): TemplateResult {
     const duration = formatDurationSince(issue.activeSinceMs, this._nowMs);
     return html`
-      <button
-        class="issue"
-        role="listitem"
-        type="button"
-        aria-label="${issue.title}, ${issue.severity}, ${issue.message}, active for ${duration}"
-        @click=${() => this._openMoreInfo(issue.entity_id)}
-        @keydown=${(event: KeyboardEvent) => this._handleIssueKeydown(event, issue.entity_id)}
-      >
-        <span class="entity-icon" aria-hidden="true"><ha-icon .icon=${issue.icon}></ha-icon></span>
-        <span class="main">
-          <span class="issue-title">${issue.title}</span>
-          <span class="message">${issue.message}</span>
-          <span class="meta">
-            <span>${duration}</span>
-            <span>${issue.state}</span>
-            ${issue.area ? html`<span>${issue.area}</span>` : nothing}
+      <div class="issue" role="listitem">
+        <button
+          class="issue-main"
+          type="button"
+          aria-label="${issue.title}, ${issue.severity}, ${issue.message}, active for ${duration}"
+          @click=${() => this._openMoreInfo(issue.entity_id)}
+        >
+          <span class="entity-icon" aria-hidden="true"
+            ><ha-icon .icon=${issue.icon}></ha-icon
+          ></span>
+          <span class="main">
+            <span class="issue-title">${issue.title}</span>
+            <span class="message">${issue.message}</span>
+            <span class="meta">
+              <span>${duration}</span>
+              <span>${issue.state}</span>
+              ${issue.area ? html`<span>${issue.area}</span>` : nothing}
+            </span>
           </span>
-        </span>
-        ${this._renderSeverityChip(issue.severity)}
+          ${this._renderSeverityChip(issue.severity)}
+        </button>
+        ${
+          issue.actions && issue.actions.length > 0
+            ? html`
+                <div class="issue-actions" aria-label="Actions for ${issue.title}">
+                  ${issue.actions.map((action) => this._renderAction(issue, action))}
+                </div>
+              `
+            : nothing
+        }
+      </div>
+    `;
+  }
+
+  private _renderAction(issue: AttentionIssue, action: IssueAction): TemplateResult {
+    const label = actionLabel(action);
+    return html`
+      <button
+        class="issue-action"
+        type="button"
+        title=${label}
+        @click=${(event: MouseEvent) => this._handleAction(event, issue, action)}
+      >
+        ${action.icon ? html`<ha-icon .icon=${action.icon}></ha-icon>` : nothing}
+        <span>${label}</span>
       </button>
     `;
   }
 
   private _renderEmptyState(): TemplateResult {
     return html`<div class="empty">Everything looks normal</div>`;
+  }
+
+  private _renderHiddenCount(): TemplateResult | typeof nothing {
+    if (this._presentation.hiddenCount === 0) {
+      return nothing;
+    }
+    return html`
+      <div class="hidden-count" role="status">
+        ${this._presentation.hiddenCount} more
+        ${this._presentation.hiddenCount === 1 ? "issue" : "issues"}
+      </div>
+    `;
+  }
+
+  private _renderDiagnostics(): TemplateResult | typeof nothing {
+    const messages = [
+      ...this._diagnostics.map((diagnostic) => diagnostic.message),
+      ...(this._actionError ? [this._actionError] : []),
+    ];
+    if (messages.length === 0) {
+      return nothing;
+    }
+    return html`
+      <div class="diagnostics" role="status" aria-live="polite">
+        ${messages.map((message) => html`<div>${message}</div>`)}
+      </div>
+    `;
   }
 
   private _renderCountChip(severity: Severity, count: number): TemplateResult {
@@ -243,9 +356,12 @@ export class AttentionCenterCard extends LitElement {
 
     this._nowMs = Date.now();
     // Keep the full Home Assistant state scan outside render so Lit updates only paint prepared rows.
-    this._issues = evaluateAttentionIssues(this.hass, this._plan, new Date(this._nowMs), {
+    const result = evaluateAttentionResult(this.hass, this._plan, new Date(this._nowMs), {
       ruleDurationMemory: this._ruleDurationMemory,
+      connectedAtMs: this._connectedAtMs,
     });
+    this._diagnostics = result.diagnostics;
+    this._presentation = prepareIssuePresentation(result.issues, this._plan.config);
     this._lastStatesRef = this.hass.states;
     this._lastEntitiesRef = this.hass.entities;
     this._lastDevicesRef = this.hass.devices;
@@ -281,12 +397,26 @@ export class AttentionCenterCard extends LitElement {
     );
   }
 
-  private _handleIssueKeydown(event: KeyboardEvent, entityId: string): void {
-    if (event.key !== "Enter" && event.key !== " ") {
+  private async _handleAction(
+    event: MouseEvent,
+    issue: AttentionIssue,
+    action: IssueAction,
+  ): Promise<void> {
+    event.stopPropagation();
+    if (!this.hass) {
       return;
     }
-    event.preventDefault();
-    this._openMoreInfo(entityId);
+    this._actionError = undefined;
+    try {
+      await executeIssueAction(this.hass, issue.entity_id, action, {
+        confirm: (message) => window.confirm(message),
+        navigate: navigateHomeAssistant,
+        openUrl: (path) => window.open(path, "_blank", "noopener,noreferrer"),
+        showMoreInfo: (entityId) => this._openMoreInfo(entityId),
+      });
+    } catch (error) {
+      this._actionError = error instanceof Error ? error.message : "The action could not be run.";
+    }
   }
 }
 

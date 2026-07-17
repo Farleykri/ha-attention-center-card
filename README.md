@@ -1,27 +1,8 @@
 # Attention Center Card
 
-Attention Center is a Home Assistant custom Lovelace card that automatically finds entities needing attention and presents them as a prioritized exception list.
+Attention Center is a frontend-only Home Assistant custom Lovelace card that finds entities needing attention and presents them as a prioritized, filterable issue list.
 
-Instead of hand-building many conditional cards, you configure broad detection rules once:
-
-- unavailable or unknown entities
-- low-battery entities
-- stale entities
-- user-defined state, attribute, numeric, duration, and wildcard rules
-
-Version 1 is frontend-only. It uses only Home Assistant state data available to Lovelace cards and does not require a custom integration, backend service, cloud API, Node-RED, card-mod, browser_mod, Mushroom, or auto-entities.
-
-## Screenshots
-
-Screenshots will be added after the first packaged release is installed in a live Home Assistant dashboard.
-
-Placeholder views:
-
-- Full issue list
-- Compact issue list
-- Summary-only mode
-- Empty state
-- Visual configuration editor
+Version 0.2 adds label targeting, accessible issue groups, filters and limits, dynamic thresholds, numeric hysteresis, inline actions, and separate unknown/unavailable policies. It does not require a custom integration, backend service, cloud API, Node-RED, card-mod, browser_mod, Mushroom, or auto-entities.
 
 ## Installation With HACS
 
@@ -29,10 +10,10 @@ Placeholder views:
 2. Add `https://github.com/Farleykri/ha-attention-center-card`.
 3. Select category **Dashboard**.
 4. Install **Attention Center Card**.
-5. Reload your browser, or clear frontend cache if Home Assistant still serves the old resource.
-6. Add the card to a dashboard.
+5. Reload the browser, or clear the frontend cache if Home Assistant serves an old resource.
+6. Add `custom:attention-center-card` to a dashboard.
 
-HACS should register this resource:
+HACS registers this resource:
 
 ```text
 /hacsfiles/ha-attention-center-card/ha-attention-center-card.js
@@ -40,33 +21,18 @@ HACS should register this resource:
 
 ## Manual Installation
 
-1. Build the card:
-
-```bash
-npm install
-npm run build
-```
-
-2. Copy `ha-attention-center-card.js` to:
-
-```text
-config/www/community/ha-attention-center-card/ha-attention-center-card.js
-```
-
-3. Add a Lovelace resource:
+1. Run `npm install` and `npm run build`.
+2. Copy `ha-attention-center-card.js` to `config/www/community/ha-attention-center-card/`.
+3. Register the following Lovelace resource:
 
 ```yaml
 url: /local/community/ha-attention-center-card/ha-attention-center-card.js
 type: module
 ```
 
-4. Add a manual card:
+## Version 0.1 Compatible Example
 
-```yaml
-type: custom:attention-center-card
-```
-
-## Basic Configuration
+Existing Version 0.1 configuration remains valid without changes:
 
 ```yaml
 type: custom:attention-center-card
@@ -91,213 +57,200 @@ exclude:
     - sensor.*_last_seen
 ```
 
-## Full Example
+The same configuration is available at [`examples/version-0.1.yaml`](examples/version-0.1.yaml).
+
+## Version 0.2 Example
+
+A complete beta configuration is available at [`examples/version-0.2.yaml`](examples/version-0.2.yaml).
+
+### Label-Based Monitoring
+
+Label values are Home Assistant label IDs. Labels assigned to an entity or its associated device are both considered.
 
 ```yaml
-type: custom:attention-center-card
-title: House Attention Center
-
-detect_unavailable: true
-detect_batteries: true
-battery_warning: 30
-battery_critical: 15
-
-display_mode: full
-empty_state: message
+include:
+  labels:
+    - monitor
 
 exclude:
-  domains:
-    - button
-    - update
-  entities:
-    - sensor.time
-    - sensor.date
-  patterns:
-    - sensor.*_last_seen
-
-stale_rules:
-  - entity_id: sensor.basement_temperature
-    hours: 6
-  - entity_id: sensor.*_humidity
-    hours: 12
+  labels:
+    - ignore_attention_center
 
 rules:
-  - entity_id: binary_sensor.basement_water_leak
-    state: "on"
+  - label: critical_sensor
+    state: unavailable
     severity: critical
-    title: Basement water detected
+    title: Critical sensor unavailable
+```
 
+`include.labels` limits automatic unavailable, unknown, and battery detection. Explicit rules are not limited by inclusion labels, but all exclusions still apply. Entity ID rules continue to support exact IDs and `*`/`?` wildcards.
+
+### Grouping, Filters, and Limits
+
+```yaml
+group_by: area
+collapsed_groups:
+  - Garage
+
+show_severities:
+  - critical
+  - warning
+
+show_sources:
+  - unavailable
+  - battery
+  - stale
+  - rule
+
+max_issues: 20
+```
+
+Supported grouping modes are `none`, `severity`, `area`, `source`, and `device`. Groups have accessible headings and active counts. `collapsed_groups` accepts the displayed area name, severity/source key, or device ID. Filtering occurs before grouping. Summary counts include every filtered issue before `max_issues` is applied, and the card reports how many issues the limit hides.
+
+### Dynamic Thresholds
+
+```yaml
+battery_warning_entity: input_number.battery_warning_threshold
+battery_critical_entity: input_number.battery_critical_threshold
+
+rules:
+  - entity_id: sensor.basement_humidity
+    above_entity: input_number.basement_humidity_warning
+    severity: warning
+
+  - entity_id: sensor.generator_fuel_percent
+    below_entity: input_number.generator_fuel_warning
+    severity: warning
+```
+
+Threshold entities must have finite numeric states. Missing, `unknown`, `unavailable`, and nonnumeric values suppress the affected detector or rule and produce a visible diagnostic instead of a false issue. Fixed `above`, `below`, `battery_warning`, and `battery_critical` values remain supported.
+
+### Hysteresis
+
+```yaml
+rules:
+  - entity_id: sensor.basement_humidity
+    above: 65
+    clear_below: 60
+    for_minutes: 15
+    severity: warning
+
+  - entity_id: sensor.generator_fuel_percent
+    below: 25
+    clear_above: 30
+    severity: warning
+```
+
+After a numeric issue becomes active, `clear_below` or `clear_above` keeps it active through small value fluctuations. Hysteresis state is held only in frontend memory and resets when the rule/entity disappears or the browser reloads.
+
+### Inline Actions
+
+```yaml
+rules:
   - entity_id: binary_sensor.garage_entry_door
     state: "on"
     for_minutes: 15
     severity: warning
     title: Garage entry door left open
+    actions:
+      - name: View garage
+        icon: mdi:cctv
+        navigation_path: /dashboard-cameras/garage
 
-  - entity_id: sensor.generator_fuel_percent
-    below: 25
-    severity: warning
-    title: Generator fuel is low
+      - name: Run garage script
+        icon: mdi:garage
+        service: script.turn_on
+        target:
+          entity_id: script.close_garage
+        data:
+          source: attention_center
+        confirmation: true
 
-  - entity_id: sensor.basement_humidity
-    above: 65
-    severity: warning
-    title: Basement humidity is high
-
-  - entity_id: climate.first_floor
-    attribute: hvac_action
-    state: cooling
-    severity: info
-    title: First floor is cooling
+      - name: More info
+        action: more-info
 ```
+
+Actions support More Info, Home Assistant navigation, HTTP/HTTPS URLs, and `domain.service` calls with optional `target` and `data`. Action buttons do not trigger the issue row. Confirmation uses the browser's native confirmation dialog because Home Assistant's styled confirmation helper is not a public custom-card API. JavaScript URLs, templates, and arbitrary code are rejected.
+
+### Availability Policies
+
+```yaml
+availability:
+  detect_unavailable: true
+  detect_unknown: true
+  unavailable_severity: warning
+  unknown_severity: info
+  unavailable_for_minutes: 10
+  unknown_for_minutes: 5
+  startup_grace_minutes: 5
+```
+
+Startup grace begins when the card instance first connects. It suppresses automatic unknown/unavailable issues only; explicit user rules still evaluate. Without an `availability` block, legacy `detect_unavailable` continues to enable or disable both states, both use warning severity, and all duration/grace values default to zero.
 
 ## Configuration Reference
 
-| Option               | Type                         | Default            | Description                                                            |
-| -------------------- | ---------------------------- | ------------------ | ---------------------------------------------------------------------- |
-| `title`              | string                       | `Attention Center` | Header title.                                                          |
-| `detect_unavailable` | boolean                      | `true`             | Detect entities with `unavailable` or `unknown` state.                 |
-| `detect_batteries`   | boolean                      | `true`             | Detect low battery entities.                                           |
-| `battery_warning`    | number                       | `30`               | Warning threshold, matched when battery is below this value.           |
-| `battery_critical`   | number                       | `15`               | Critical threshold, matched when battery is below this value.          |
-| `battery_thresholds` | object                       | `{}`               | Per-entity battery threshold overrides.                                |
-| `detect_stale`       | boolean                      | `false`            | Enable global stale detection for all non-excluded entities.           |
-| `stale_hours`        | number                       | `24`               | Global stale threshold when `detect_stale` is enabled.                 |
-| `stale_rules`        | list                         | `[]`               | Selected stale checks by exact entity ID or wildcard pattern.          |
-| `rules`              | list                         | `[]`               | User-defined state, attribute, numeric, and duration rules.            |
-| `exclude.domains`    | list                         | `[]`               | Domains to ignore, such as `button`.                                   |
-| `exclude.entities`   | list                         | `[]`               | Exact entity IDs to ignore.                                            |
-| `exclude.devices`    | list                         | `[]`               | Device IDs to ignore when available from the frontend registry.        |
-| `exclude.areas`      | list                         | `[]`               | Area IDs or names to ignore when available from the frontend registry. |
-| `exclude.patterns`   | list                         | `[]`               | Wildcard entity patterns to ignore.                                    |
-| `display_mode`       | `full`, `compact`, `summary` | `full`             | Layout mode.                                                           |
-| `empty_state`        | `message`, `hide`            | `message`          | Show `Everything looks normal` or hide the card.                       |
-| `reverse_age_sort`   | boolean                      | `false`            | Reverse age sorting within each severity group.                        |
+| Option                                               | Default            | Description                                                                  |
+| ---------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------- |
+| `title`                                              | `Attention Center` | Card heading.                                                                |
+| `detect_unavailable`                                 | `true`             | Version 0.1 compatibility switch for unknown and unavailable detection.      |
+| `detect_batteries`                                   | `true`             | Enable automatic low-battery detection.                                      |
+| `battery_warning` / `battery_critical`               | `30` / `15`        | Fixed global battery thresholds.                                             |
+| `battery_warning_entity` / `battery_critical_entity` | unset              | Numeric entities that replace global fixed thresholds at runtime.            |
+| `battery_thresholds`                                 | `{}`               | Per-entity fixed battery threshold overrides.                                |
+| `availability`                                       | legacy-compatible  | Separate detection, severity, duration, and startup grace settings.          |
+| `detect_stale` / `stale_hours`                       | `false` / `24`     | Global stale detection and threshold.                                        |
+| `stale_rules`                                        | `[]`               | Exact or wildcard stale checks.                                              |
+| `rules`                                              | `[]`               | Entity/wildcard/label rules, thresholds, hysteresis, durations, and actions. |
+| `include.labels`                                     | `[]`               | Limit automatic availability and battery scans to these label IDs.           |
+| `exclude.domains`                                    | `[]`               | Domains to ignore.                                                           |
+| `exclude.entities`                                   | `[]`               | Exact entity IDs to ignore.                                                  |
+| `exclude.devices`                                    | `[]`               | Device IDs to ignore.                                                        |
+| `exclude.areas`                                      | `[]`               | Area IDs or names to ignore.                                                 |
+| `exclude.patterns`                                   | `[]`               | Wildcard entity IDs to ignore.                                               |
+| `exclude.labels`                                     | `[]`               | Entity or inherited device label IDs to ignore.                              |
+| `display_mode`                                       | `full`             | `full`, `compact`, or `summary`.                                             |
+| `empty_state`                                        | `message`          | `message` or `hide`.                                                         |
+| `reverse_age_sort`                                   | `false`            | Newest first within a severity.                                              |
+| `group_by`                                           | `none`             | `none`, `severity`, `area`, `source`, or `device`.                           |
+| `collapsed_groups`                                   | `[]`               | Group keys or labels initially rendered closed.                              |
+| `show_severities`                                    | all                | Included severities.                                                         |
+| `show_sources`                                       | all                | Included sources.                                                            |
+| `max_issues`                                         | unlimited          | Positive maximum number of rendered issue rows.                              |
 
-## Battery Detection
+## Rule Reference
 
-Battery entities are detected using common Home Assistant conventions:
+Each rule defines exactly one target: `entity_id` (exact or wildcard) or `label`. Supported conditions are `state`, `not_state`, `above`, `above_entity`, `below`, and `below_entity`. `attribute` applies a condition to an attribute. `for_minutes` delays activation.
 
-- `device_class: battery`
-- percentage entities with battery-style entity IDs
-- entity IDs containing battery naming patterns when device class metadata is missing
+`above` cannot be combined with `above_entity`, and `below` cannot be combined with `below_entity`. `clear_below` is valid only with an above condition and must resolve below its trigger. `clear_above` is valid only with a below condition and must resolve above its trigger.
 
-Per-entity threshold overrides:
-
-```yaml
-battery_thresholds:
-  sensor.front_door_lock_battery:
-    warning: 40
-    critical: 20
-  sensor.garage_keypad_battery: 50
-```
-
-When the override is a number, it overrides the warning threshold and keeps the global critical threshold.
-
-## Stale Detection
-
-Global stale detection is disabled by default because many valid Home Assistant entities update rarely. Prefer selected stale rules:
-
-```yaml
-stale_rules:
-  - entity_id: sensor.basement_temperature
-    hours: 6
-  - entity_id: sensor.*_humidity
-    hours: 12
-    severity: info
-```
-
-The card uses `last_updated` first and falls back to `last_changed`.
-
-## User Rules
-
-Rules support exact entity IDs and wildcard patterns.
-
-Supported operators:
-
-- `state`
-- `not_state`
-- `above`
-- `below`
-- `attribute` plus `state`
-- `for_minutes`
-
-Examples:
-
-```yaml
-rules:
-  - entity_id: binary_sensor.garage_entry_door
-    state: "on"
-    for_minutes: 15
-    severity: warning
-    title: Garage entry door left open
-
-  - entity_id: sensor.generator_fuel_percent
-    below: 25
-    severity: warning
-
-  - entity_id: sensor.*_humidity
-    above: 65
-    severity: warning
-
-  - entity_id: climate.first_floor
-    attribute: hvac_action
-    state: cooling
-    severity: info
-```
-
-Invalid, missing, nonnumeric, `unknown`, and `unavailable` values are ignored for numeric comparisons.
+Direct entity-state `state` and `not_state` durations initialize from `last_changed`. Numeric and attribute durations start when the frontend first observes the matching condition.
 
 ## Visual Editor
 
-The card includes a Lovelace visual editor for common options:
+The visual editor supports grouping, maximum issue count, severity/source filters, availability settings, dynamic battery threshold entities, label inclusion/exclusion, and initially collapsed groups. Home Assistant entity selectors are used for dynamic battery references. Advanced rules, hysteresis, and actions remain in the JSON rule editor. Unknown or advanced configuration keys are preserved when common controls are edited, and validation errors are shown instead of silently dropping invalid values.
 
-- title
-- unavailable, battery, and stale detection toggles
-- warning and critical battery thresholds
-- display mode
-- empty-state behavior
-- domain, entity, and wildcard exclusions
+## Registry and Frontend Limitations
 
-Advanced stale rules and user rules can be edited as JSON arrays in the visual editor. Full YAML configuration is supported in Home Assistant's manual editor.
+- Label targeting depends on `hass.entities` and `hass.devices` registry snapshots exposed to the Lovelace card. If those registries are unavailable in a frontend context, label matching cannot be performed.
+- Configured labels use stable label IDs because label display-name registry data is not guaranteed on the card's `hass` object.
+- Device and area grouping/exclusion also depend on frontend registry data. Unregistered entities fall into `No device` or `No area` groups.
+- Startup grace and hysteresis are per-card-instance frontend memory and do not survive a browser reload.
+- Dynamic threshold diagnostics are local to the card and are not Home Assistant Repairs issues.
 
 ## Development
 
 ```bash
 npm install
 npm run format
+npm run format:check
 npm run typecheck
 npm run lint
 npm run test
 npm run build
 ```
 
-During development, add this resource in Home Assistant after building:
-
-```yaml
-url: /local/community/ha-attention-center-card/ha-attention-center-card.js
-type: module
-```
-
-## Performance Notes
-
-Attention Center recalculates issues when Home Assistant state or card configuration changes, not during Lit rendering. Wildcard matchers and exclusions are compiled from configuration before evaluation. The card still performs frontend state scans because Version 1 has no backend index, but the scan is kept outside rendering and all expensive configuration parsing is reused.
-
-## Known Limitations
-
-- Version 1 cannot persist acknowledgements or snoozes because it has no backend storage.
-- Attribute duration rules use the entity's `last_updated` timestamp, which may change for reasons unrelated to the specific attribute.
-- Device and area exclusions depend on frontend registry data exposed to the card.
-- The visual editor uses JSON text areas for advanced rules instead of a full rule-builder UI.
+The production build writes `dist/ha-attention-center-card.js` and copies the HACS bundle plus source map to the repository root.
 
 ## Roadmap
 
-- Persistent acknowledgement
-- Snoozing issues
-- Home Assistant backend integration
-- Notification support
-- Repair integration support
-- Device and area-level rules
-- Dashboard actions
-- Issue history
-- Rule-builder UI
-- Importable rule packs
+Persistent acknowledgements and snoozing are intentionally deferred to a future backend-enabled release. That release may also explore notifications, issue history, maintenance records, and deeper Home Assistant integration. Version 0.2 remains frontend-only and does not implement any of those features.
