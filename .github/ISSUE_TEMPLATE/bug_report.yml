@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible problem with Attention Center Card.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the behavior you saw and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Card configuration
+      description: Paste the YAML configuration for the card.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: entities
+    attributes:
+      label: Relevant entity states
+      description: Include redacted state and attribute examples for affected entities.
+      render: yaml
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.7.0"
+    validations:
+      required: true
+  - type: input
+    id: card-version
+    attributes:
+      label: Card version
+      placeholder: "0.1.0"
+    validations:
+      required: true

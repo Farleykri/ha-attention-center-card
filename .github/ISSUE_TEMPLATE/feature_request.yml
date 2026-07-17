@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an improvement for Attention Center Card.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What would this help you do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the change you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example configuration
+      render: yaml

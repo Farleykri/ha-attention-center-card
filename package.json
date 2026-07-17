@@ -1,0 +1,54 @@
+{
+  "name": "ha-attention-center-card",
+  "version": "0.1.0",
+  "description": "A Home Assistant Lovelace card that surfaces entities needing attention as a prioritized exception list.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Farleykri",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Farleykri/ha-attention-center-card.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Farleykri/ha-attention-center-card/issues"
+  },
+  "homepage": "https://github.com/Farleykri/ha-attention-center-card#readme",
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "custom-card",
+    "hacs",
+    "lit"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run lint && npm run test && npm run build"
+  },
+  "files": [
+    "dist",
+    "src",
+    "hacs.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.5",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.20.0",
+    "vite": "^6.0.7",
+    "vitest": "^4.1.10"
+  }
+}
