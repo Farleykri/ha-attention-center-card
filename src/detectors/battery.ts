@@ -6,7 +6,7 @@ import type {
   Severity,
 } from "../types";
 import { createIssue, parseNumericState, timestampMs } from "../hass";
-import { isEntityExcluded } from "../matcher";
+import { isEntityExcluded, isEntityIncludedByLabels } from "../matcher";
 
 const BATTERY_ID_PATTERNS = [
   /(^|[._-])battery($|[._-])/i,
@@ -22,10 +22,18 @@ export function detectLowBatteries(context: EvaluationContext): AttentionIssue[]
     return [];
   }
 
+  const globalThresholds = resolveGlobalBatteryThresholds(context);
+  if (!globalThresholds) {
+    return [];
+  }
+
   const issues: AttentionIssue[] = [];
   for (const [entityId, entity] of Object.entries(context.hass.states)) {
     if (
+      entityId === config.battery_warning_entity ||
+      entityId === config.battery_critical_entity ||
       !isBatteryEntity(entityId, entity) ||
+      !isEntityIncludedByLabels(entityId, context.hass, config.include.labels) ||
       isEntityExcluded(entityId, context.hass, exclusions)
     ) {
       continue;
@@ -36,7 +44,15 @@ export function detectLowBatteries(context: EvaluationContext): AttentionIssue[]
       continue;
     }
 
-    const thresholds = getBatteryThresholds(context, entityId);
+    const thresholds = getBatteryThresholds(context, entityId, globalThresholds);
+    if (thresholds.critical >= thresholds.warning) {
+      addDiagnostic(
+        context,
+        `battery-threshold-order:${entityId}`,
+        `Battery thresholds for ${entityId} are invalid: critical must be lower than warning.`,
+      );
+      continue;
+    }
     const severity = getBatterySeverity(percentage, thresholds);
     if (!severity) {
       continue;
@@ -77,26 +93,82 @@ export function isBatteryEntity(entityId: string, entity: HassEntity): boolean {
 function getBatteryThresholds(
   context: EvaluationContext,
   entityId: string,
+  globalThresholds: { warning: number; critical: number },
 ): { warning: number; critical: number } {
   const override = context.plan.config.battery_thresholds[entityId];
   if (override === undefined) {
     return {
-      warning: context.plan.config.battery_warning,
-      critical: context.plan.config.battery_critical,
+      warning: globalThresholds.warning,
+      critical: globalThresholds.critical,
     };
   }
 
   if (typeof override === "number") {
     return {
       warning: override,
-      critical: Math.min(context.plan.config.battery_critical, override),
+      critical: globalThresholds.critical,
     };
   }
 
   return {
-    warning: override.warning ?? context.plan.config.battery_warning,
-    critical: override.critical ?? context.plan.config.battery_critical,
+    warning: override.warning ?? globalThresholds.warning,
+    critical: override.critical ?? globalThresholds.critical,
   };
+}
+
+function resolveGlobalBatteryThresholds(
+  context: EvaluationContext,
+): { warning: number; critical: number } | undefined {
+  const { config } = context.plan;
+  const warning = resolveThresholdEntity(
+    context,
+    config.battery_warning_entity,
+    config.battery_warning,
+    "battery_warning_entity",
+  );
+  const critical = resolveThresholdEntity(
+    context,
+    config.battery_critical_entity,
+    config.battery_critical,
+    "battery_critical_entity",
+  );
+  if (warning === undefined || critical === undefined) {
+    return undefined;
+  }
+  if (critical >= warning) {
+    addDiagnostic(
+      context,
+      "battery-threshold-order",
+      "Resolved battery_critical must be lower than battery_warning.",
+    );
+    return undefined;
+  }
+  return { warning, critical };
+}
+
+function resolveThresholdEntity(
+  context: EvaluationContext,
+  entityId: string | undefined,
+  fallback: number,
+  field: string,
+): number | undefined {
+  if (!entityId) {
+    return fallback;
+  }
+  const value = parseNumericState(context.hass.states[entityId]?.state);
+  if (value === undefined || value <= 0) {
+    addDiagnostic(
+      context,
+      `invalid-threshold:${field}`,
+      `${field} (${entityId}) must have an available finite positive numeric state.`,
+    );
+    return undefined;
+  }
+  return value;
+}
+
+function addDiagnostic(context: EvaluationContext, code: string, message: string): void {
+  context.diagnostics.set(code, { code, message });
 }
 
 function getBatterySeverity(

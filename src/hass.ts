@@ -5,6 +5,7 @@ import type {
   HassEntity,
   HassEntityRegistryEntry,
   HomeAssistant,
+  IssueAction,
   IssueSource,
   Severity,
 } from "./types";
@@ -131,6 +132,25 @@ export function getEntityDeviceId(hass: HomeAssistant, entityId: string): string
   return typeof attributeDeviceId === "string" ? attributeDeviceId : undefined;
 }
 
+export function getEntityLabels(hass: HomeAssistant, entityId: string): string[] {
+  const labels = new Set(hass.entities?.[entityId]?.labels ?? []);
+  const deviceId = getEntityDeviceId(hass, entityId);
+  const device = deviceId ? getDeviceByIdentifier(hass, deviceId) : undefined;
+  for (const label of device?.labels ?? []) {
+    labels.add(label);
+  }
+  return [...labels];
+}
+
+export function getEntityDeviceName(hass: HomeAssistant, entityId: string): string | undefined {
+  const deviceId = getEntityDeviceId(hass, entityId);
+  if (!deviceId) {
+    return undefined;
+  }
+  const device = getDeviceByIdentifier(hass, deviceId);
+  return normalizeName(device?.name_by_user) ?? normalizeName(device?.name) ?? deviceId;
+}
+
 export function createIssue(params: {
   hass: HomeAssistant;
   entityId: string;
@@ -140,8 +160,10 @@ export function createIssue(params: {
   activeSinceMs?: number;
   source: IssueSource;
   id: string;
+  actions?: IssueAction[];
 }): AttentionIssue {
   const entity = params.hass.states[params.entityId];
+  const deviceId = getEntityDeviceId(params.hass, params.entityId);
   const activeSinceMs =
     params.activeSinceMs ??
     timestampMs(entity?.last_changed) ??
@@ -156,8 +178,11 @@ export function createIssue(params: {
     state: entity?.state ?? "missing",
     activeSinceMs,
     area: getAreaName(params.hass, params.entityId),
+    deviceId,
+    deviceName: getEntityDeviceName(params.hass, params.entityId),
     icon: getEntityIcon(params.hass, params.entityId, params.severity, params.source),
     source: params.source,
+    actions: params.actions,
   };
 }
 
@@ -171,7 +196,10 @@ function getAreaByIdentifier(hass: HomeAssistant, identifier: string): HassArea 
   );
 }
 
-function getDeviceByIdentifier(hass: HomeAssistant, identifier: string): HassDevice | undefined {
+export function getDeviceByIdentifier(
+  hass: HomeAssistant,
+  identifier: string,
+): HassDevice | undefined {
   const direct = hass.devices?.[identifier];
   if (direct) {
     return direct;

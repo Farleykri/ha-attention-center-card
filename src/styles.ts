@@ -129,11 +129,78 @@ export const cardStyles = css`
     color: var(--secondary-text-color);
   }
 
+  .diagnostics {
+    display: grid;
+    gap: 4px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+    color: var(--warning-color, #b26a00);
+    background: color-mix(in srgb, var(--warning-color, #f4a000), transparent 92%);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .hidden-count {
+    padding: 10px 16px;
+    border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+    color: var(--secondary-text-color);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .groups {
+    display: grid;
+  }
+
+  .issue-group {
+    border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+  }
+
+  .issue-group:first-child {
+    border-top: 0;
+  }
+
+  .issue-group summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 42px;
+    padding: 8px 16px;
+    color: var(--primary-text-color);
+    background: var(--secondary-background-color, rgba(0, 0, 0, 0.025));
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+
+  .group-heading {
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .group-count {
+    flex: 0 0 auto;
+    color: var(--secondary-text-color);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
   .list {
     display: grid;
   }
 
   .issue {
+    display: grid;
+    border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+  }
+
+  .issue:first-child {
+    border-top: 0;
+  }
+
+  .issue-main {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 12px;
@@ -141,7 +208,6 @@ export const cardStyles = css`
     min-height: 58px;
     padding: 12px 16px;
     border: 0;
-    border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
     color: var(--primary-text-color);
     background: transparent;
     text-align: left;
@@ -149,17 +215,43 @@ export const cardStyles = css`
     box-sizing: border-box;
   }
 
-  .issue:first-child {
-    border-top: 0;
-  }
-
-  .issue:focus-visible {
+  .issue-main:focus-visible,
+  .issue-action:focus-visible {
     outline: 2px solid var(--primary-color);
     outline-offset: -2px;
   }
 
-  .issue:hover {
+  .issue-main:hover,
+  .issue-action:hover {
     background: var(--state-hover-color, rgba(0, 0, 0, 0.04));
+  }
+
+  .issue-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 10px 52px;
+  }
+
+  .issue-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 4px 8px;
+    border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.18));
+    border-radius: 6px;
+    color: var(--primary-text-color);
+    background: transparent;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .issue-action ha-icon {
+    --mdc-icon-size: 17px;
+    width: 17px;
+    height: 17px;
   }
 
   .entity-icon {
@@ -201,7 +293,7 @@ export const cardStyles = css`
     gap: 4px 8px;
   }
 
-  .compact .issue {
+  .compact .issue-main {
     min-height: 46px;
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding-block: 9px;
@@ -213,12 +305,20 @@ export const cardStyles = css`
 
   @media (max-width: 420px) {
     .issue {
+      display: grid;
+    }
+
+    .issue-main {
       grid-template-columns: auto minmax(0, 1fr);
     }
 
     .severity-chip {
       grid-column: 2;
       justify-self: start;
+    }
+
+    .issue-actions {
+      padding-left: 16px;
     }
 
     .summary {
@@ -242,6 +342,13 @@ export const editorStyles = css`
     gap: 10px;
   }
 
+  h3 {
+    margin: 0;
+    color: var(--primary-text-color);
+    font-size: 15px;
+    font-weight: 600;
+  }
+
   .row {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -251,6 +358,38 @@ export const editorStyles = css`
   .toggles {
     display: grid;
     gap: 8px;
+  }
+
+  fieldset {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.18));
+    border-radius: 6px;
+  }
+
+  legend {
+    padding: 0 4px;
+    color: var(--secondary-text-color);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary-text-color);
+    font-size: 13px;
+    font-weight: 400;
+    text-transform: none;
+  }
+
+  .filter-option input {
+    width: auto;
   }
 
   label {

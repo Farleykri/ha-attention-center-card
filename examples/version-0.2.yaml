@@ -1,0 +1,67 @@
+type: custom:attention-center-card
+title: House Attention Center
+
+include:
+  labels:
+    - monitor
+
+exclude:
+  domains:
+    - button
+    - update
+  labels:
+    - ignore_attention_center
+
+group_by: area
+collapsed_groups:
+  - Garage
+show_severities:
+  - critical
+  - warning
+show_sources:
+  - unavailable
+  - battery
+  - stale
+  - rule
+max_issues: 20
+
+battery_warning_entity: input_number.battery_warning_threshold
+battery_critical_entity: input_number.battery_critical_threshold
+
+availability:
+  detect_unavailable: true
+  detect_unknown: true
+  unavailable_severity: warning
+  unknown_severity: info
+  unavailable_for_minutes: 10
+  unknown_for_minutes: 5
+  startup_grace_minutes: 5
+
+rules:
+  - label: critical_sensor
+    state: unavailable
+    severity: critical
+    title: Critical sensor unavailable
+
+  - entity_id: sensor.basement_humidity
+    above_entity: input_number.basement_humidity_warning
+    clear_below: 60
+    for_minutes: 15
+    severity: warning
+    title: Basement humidity is high
+
+  - entity_id: binary_sensor.garage_entry_door
+    state: "on"
+    for_minutes: 15
+    severity: warning
+    title: Garage entry door left open
+    actions:
+      - name: View garage
+        icon: mdi:cctv
+        navigation_path: /dashboard-cameras/garage
+      - name: Run garage script
+        icon: mdi:garage
+        service: script.turn_on
+        target:
+          entity_id: script.close_garage
+        confirmation: true

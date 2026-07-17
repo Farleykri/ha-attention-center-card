@@ -1,10 +1,16 @@
 import type {
   AttentionCenterCardConfig,
+  AvailabilityConfig,
   BatteryThresholdOverride,
   DisplayMode,
   EmptyState,
   ExclusionConfig,
+  GroupBy,
+  InclusionConfig,
+  IssueAction,
+  IssueSource,
   NormalizedAttentionCenterCardConfig,
+  NormalizedAvailabilityConfig,
   Severity,
   StaleRule,
   UserRule,
@@ -16,8 +22,10 @@ export const DEFAULT_BATTERY_CRITICAL = 15;
 export const DEFAULT_STALE_HOURS = 24;
 
 const SEVERITIES = new Set<Severity>(["critical", "warning", "info"]);
+const ISSUE_SOURCES = new Set<IssueSource>(["unavailable", "battery", "stale", "rule"]);
 const DISPLAY_MODES = new Set<DisplayMode>(["full", "compact", "summary"]);
 const EMPTY_STATES = new Set<EmptyState>(["message", "hide"]);
+const GROUP_MODES = new Set<GroupBy>(["none", "severity", "area", "source", "device"]);
 
 export const DEFAULT_CONFIG: NormalizedAttentionCenterCardConfig = {
   title: DEFAULT_TITLE,
@@ -28,15 +36,32 @@ export const DEFAULT_CONFIG: NormalizedAttentionCenterCardConfig = {
   battery_warning: DEFAULT_BATTERY_WARNING,
   battery_critical: DEFAULT_BATTERY_CRITICAL,
   battery_thresholds: {},
+  availability: {
+    detect_unavailable: true,
+    detect_unknown: true,
+    unavailable_severity: "warning",
+    unknown_severity: "warning",
+    unavailable_for_minutes: 0,
+    unknown_for_minutes: 0,
+    startup_grace_minutes: 0,
+  },
   display_mode: "full",
   empty_state: "message",
   reverse_age_sort: false,
+  group_by: "none",
+  show_severities: ["critical", "warning", "info"],
+  show_sources: ["unavailable", "battery", "stale", "rule"],
+  collapsed_groups: [],
+  include: {
+    labels: [],
+  },
   exclude: {
     domains: [],
     entities: [],
     devices: [],
     areas: [],
     patterns: [],
+    labels: [],
   },
   stale_rules: [],
   rules: [],
@@ -54,6 +79,11 @@ export function normalizeConfig(
   }
 
   const rawConfig = config as AttentionCenterCardConfig;
+  const detectUnavailable = normalizeBoolean(
+    rawConfig.detect_unavailable,
+    "detect_unavailable",
+    DEFAULT_CONFIG.detect_unavailable,
+  );
 
   const title = normalizeOptionalString(rawConfig.title, "title") ?? DEFAULT_TITLE;
   const batteryWarning = normalizeOptionalNumber(
@@ -87,11 +117,7 @@ export function normalizeConfig(
   return {
     ...rawConfig,
     title,
-    detect_unavailable: normalizeBoolean(
-      rawConfig.detect_unavailable,
-      "detect_unavailable",
-      DEFAULT_CONFIG.detect_unavailable,
-    ),
+    detect_unavailable: detectUnavailable,
     detect_batteries: normalizeBoolean(
       rawConfig.detect_batteries,
       "detect_batteries",
@@ -110,6 +136,15 @@ export function normalizeConfig(
       batteryWarning,
       batteryCritical,
     ),
+    battery_warning_entity: normalizeOptionalNonEmptyString(
+      rawConfig.battery_warning_entity,
+      "battery_warning_entity",
+    ),
+    battery_critical_entity: normalizeOptionalNonEmptyString(
+      rawConfig.battery_critical_entity,
+      "battery_critical_entity",
+    ),
+    availability: normalizeAvailability(rawConfig.availability, detectUnavailable),
     display_mode: displayMode,
     empty_state: emptyState,
     reverse_age_sort: normalizeBoolean(
@@ -117,6 +152,22 @@ export function normalizeConfig(
       "reverse_age_sort",
       DEFAULT_CONFIG.reverse_age_sort,
     ),
+    group_by: normalizeEnum(rawConfig.group_by, "group_by", GROUP_MODES, DEFAULT_CONFIG.group_by),
+    show_severities: normalizeEnumArray(
+      rawConfig.show_severities,
+      "show_severities",
+      SEVERITIES,
+      DEFAULT_CONFIG.show_severities,
+    ),
+    show_sources: normalizeEnumArray(
+      rawConfig.show_sources,
+      "show_sources",
+      ISSUE_SOURCES,
+      DEFAULT_CONFIG.show_sources,
+    ),
+    max_issues: normalizeOptionalPositiveInteger(rawConfig.max_issues, "max_issues"),
+    collapsed_groups: normalizeStringArray(rawConfig.collapsed_groups, "collapsed_groups"),
+    include: normalizeInclusions(rawConfig.include),
     exclude: normalizeExclusions(rawConfig.exclude),
     stale_rules: normalizeStaleRules(rawConfig.stale_rules),
     rules: normalizeRules(rawConfig.rules),
@@ -127,13 +178,72 @@ export function configKey(config: NormalizedAttentionCenterCardConfig): string {
   return JSON.stringify(config);
 }
 
+function normalizeInclusions(include: InclusionConfig | undefined): Required<InclusionConfig> {
+  if (include !== undefined && !isPlainObject(include)) {
+    throw new Error("include must be an object.");
+  }
+  return {
+    labels: normalizeStringArray(include?.labels, "include.labels"),
+  };
+}
+
 function normalizeExclusions(exclude: ExclusionConfig | undefined): Required<ExclusionConfig> {
+  if (exclude !== undefined && !isPlainObject(exclude)) {
+    throw new Error("exclude must be an object.");
+  }
   return {
     domains: normalizeStringArray(exclude?.domains, "exclude.domains"),
     entities: normalizeStringArray(exclude?.entities, "exclude.entities"),
     devices: normalizeStringArray(exclude?.devices, "exclude.devices"),
     areas: normalizeStringArray(exclude?.areas, "exclude.areas"),
     patterns: normalizeStringArray(exclude?.patterns, "exclude.patterns"),
+    labels: normalizeStringArray(exclude?.labels, "exclude.labels"),
+  };
+}
+
+function normalizeAvailability(
+  availability: AvailabilityConfig | undefined,
+  legacyDetectUnavailable: boolean,
+): NormalizedAvailabilityConfig {
+  if (availability !== undefined && !isPlainObject(availability)) {
+    throw new Error("availability must be an object.");
+  }
+  return {
+    detect_unavailable: normalizeBoolean(
+      availability?.detect_unavailable,
+      "availability.detect_unavailable",
+      legacyDetectUnavailable,
+    ),
+    detect_unknown: normalizeBoolean(
+      availability?.detect_unknown,
+      "availability.detect_unknown",
+      legacyDetectUnavailable,
+    ),
+    unavailable_severity: normalizeSeverity(
+      availability?.unavailable_severity,
+      "availability.unavailable_severity",
+      "warning",
+    ),
+    unknown_severity: normalizeSeverity(
+      availability?.unknown_severity,
+      "availability.unknown_severity",
+      "warning",
+    ),
+    unavailable_for_minutes: normalizeNonNegativeNumber(
+      availability?.unavailable_for_minutes,
+      "availability.unavailable_for_minutes",
+      0,
+    ),
+    unknown_for_minutes: normalizeNonNegativeNumber(
+      availability?.unknown_for_minutes,
+      "availability.unknown_for_minutes",
+      0,
+    ),
+    startup_grace_minutes: normalizeNonNegativeNumber(
+      availability?.startup_grace_minutes,
+      "availability.startup_grace_minutes",
+      0,
+    ),
   };
 }
 
@@ -149,7 +259,11 @@ function normalizeRules(rules: UserRule[] | undefined): UserRule[] {
     if (!isPlainObject(rule)) {
       throw new Error(`rules[${index}] must be an object.`);
     }
-    const entityId = normalizeRequiredString(rule.entity_id, `rules[${index}].entity_id`);
+    const entityId = normalizeOptionalNonEmptyString(rule.entity_id, `rules[${index}].entity_id`);
+    const label = normalizeOptionalNonEmptyString(rule.label, `rules[${index}].label`);
+    if ((entityId === undefined) === (label === undefined)) {
+      throw new Error(`rules[${index}] must define exactly one of entity_id or label.`);
+    }
     const severity = normalizeSeverity(rule.severity, `rules[${index}].severity`, "warning");
 
     if (rule.attribute !== undefined && typeof rule.attribute !== "string") {
@@ -164,6 +278,46 @@ function normalizeRules(rules: UserRule[] | undefined): UserRule[] {
     if (rule.below !== undefined && !isFiniteNumber(rule.below)) {
       throw new Error(`rules[${index}].below must be a number.`);
     }
+    const aboveEntity = normalizeOptionalNonEmptyString(
+      rule.above_entity,
+      `rules[${index}].above_entity`,
+    );
+    const belowEntity = normalizeOptionalNonEmptyString(
+      rule.below_entity,
+      `rules[${index}].below_entity`,
+    );
+    if (rule.above !== undefined && aboveEntity !== undefined) {
+      throw new Error(`rules[${index}] cannot define both above and above_entity.`);
+    }
+    if (rule.below !== undefined && belowEntity !== undefined) {
+      throw new Error(`rules[${index}] cannot define both below and below_entity.`);
+    }
+    if (rule.clear_below !== undefined && !isFiniteNumber(rule.clear_below)) {
+      throw new Error(`rules[${index}].clear_below must be a number.`);
+    }
+    if (rule.clear_above !== undefined && !isFiniteNumber(rule.clear_above)) {
+      throw new Error(`rules[${index}].clear_above must be a number.`);
+    }
+    if (rule.clear_below !== undefined && rule.above === undefined && aboveEntity === undefined) {
+      throw new Error(`rules[${index}].clear_below requires above or above_entity.`);
+    }
+    if (rule.clear_above !== undefined && rule.below === undefined && belowEntity === undefined) {
+      throw new Error(`rules[${index}].clear_above requires below or below_entity.`);
+    }
+    if (
+      rule.above !== undefined &&
+      rule.clear_below !== undefined &&
+      rule.clear_below >= rule.above
+    ) {
+      throw new Error(`rules[${index}].clear_below must be lower than above.`);
+    }
+    if (
+      rule.below !== undefined &&
+      rule.clear_above !== undefined &&
+      rule.clear_above <= rule.below
+    ) {
+      throw new Error(`rules[${index}].clear_above must be higher than below.`);
+    }
     if (
       rule.for_minutes !== undefined &&
       (!isFiniteNumber(rule.for_minutes) || rule.for_minutes < 0)
@@ -175,16 +329,91 @@ function normalizeRules(rules: UserRule[] | undefined): UserRule[] {
       rule.state !== undefined ||
       rule.not_state !== undefined ||
       rule.above !== undefined ||
-      rule.below !== undefined;
+      aboveEntity !== undefined ||
+      rule.below !== undefined ||
+      belowEntity !== undefined;
 
     if (!hasCondition) {
-      throw new Error(`rules[${index}] must define state, not_state, above, or below.`);
+      throw new Error(
+        `rules[${index}] must define state, not_state, above, above_entity, below, or below_entity.`,
+      );
     }
 
     return {
       ...rule,
       entity_id: entityId,
+      label,
+      above_entity: aboveEntity,
+      below_entity: belowEntity,
       severity,
+      actions: normalizeActions(rule.actions, index),
+    };
+  });
+}
+
+function normalizeActions(actions: unknown, ruleIndex: number): IssueAction[] {
+  if (actions === undefined) {
+    return [];
+  }
+  if (!Array.isArray(actions)) {
+    throw new Error(`rules[${ruleIndex}].actions must be a list.`);
+  }
+
+  return (actions as IssueAction[]).map((action, actionIndex) => {
+    const field = `rules[${ruleIndex}].actions[${actionIndex}]`;
+    if (!isPlainObject(action)) {
+      throw new Error(`${field} must be an object.`);
+    }
+    if (action.action !== undefined && action.action !== "more-info") {
+      throw new Error(`${field}.action must be more-info.`);
+    }
+    const navigationPath = normalizeOptionalNonEmptyString(
+      action.navigation_path,
+      `${field}.navigation_path`,
+    );
+    const urlPath = normalizeOptionalNonEmptyString(action.url_path, `${field}.url_path`);
+    const service = normalizeOptionalNonEmptyString(action.service, `${field}.service`);
+    const actionTypeCount = [
+      action.action === "more-info",
+      navigationPath !== undefined,
+      urlPath !== undefined,
+      service !== undefined,
+    ].filter(Boolean).length;
+    if (actionTypeCount !== 1) {
+      throw new Error(
+        `${field} must define exactly one of action: more-info, navigation_path, url_path, or service.`,
+      );
+    }
+    if (navigationPath !== undefined && !navigationPath.startsWith("/")) {
+      throw new Error(`${field}.navigation_path must start with /.`);
+    }
+    if (
+      urlPath !== undefined &&
+      /^[a-z][a-z0-9+.-]*:/i.test(urlPath) &&
+      !/^https?:/i.test(urlPath)
+    ) {
+      throw new Error(`${field}.url_path must use http, https, or a relative URL.`);
+    }
+    if (service !== undefined && !/^[a-z0-9_]+\.[a-z0-9_]+$/i.test(service)) {
+      throw new Error(`${field}.service must use domain.service format.`);
+    }
+    if (action.target !== undefined && !isPlainObject(action.target)) {
+      throw new Error(`${field}.target must be an object.`);
+    }
+    if (action.data !== undefined && !isPlainObject(action.data)) {
+      throw new Error(`${field}.data must be an object.`);
+    }
+    if (action.confirmation !== undefined && typeof action.confirmation !== "boolean") {
+      throw new Error(`${field}.confirmation must be a boolean.`);
+    }
+
+    return {
+      ...action,
+      name: normalizeOptionalNonEmptyString(action.name, `${field}.name`),
+      icon: normalizeOptionalNonEmptyString(action.icon, `${field}.icon`),
+      navigation_path: navigationPath,
+      url_path: urlPath,
+      service,
     };
   });
 }
@@ -259,14 +488,14 @@ function normalizeBatteryThresholds(
   return normalized;
 }
 
-function normalizeStringArray(value: string[] | undefined, field: string): string[] {
+function normalizeStringArray(value: unknown, field: string): string[] {
   if (value === undefined) {
     return [];
   }
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     throw new Error(`${field} must be a list of strings.`);
   }
-  return value.map((item) => item.trim()).filter(Boolean);
+  return (value as string[]).map((item) => item.trim()).filter(Boolean);
 }
 
 function normalizeRequiredString(value: unknown, field: string): string {
@@ -284,6 +513,13 @@ function normalizeOptionalString(value: unknown, field: string): string | undefi
     throw new Error(`${field} must be a string.`);
   }
   return value.trim();
+}
+
+function normalizeOptionalNonEmptyString(value: unknown, field: string): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return normalizeRequiredString(value, field);
 }
 
 function normalizeOptionalNumber(value: unknown, field: string, fallback: number): number {
@@ -313,6 +549,26 @@ function normalizePositiveNumber(value: unknown, field: string, fallback?: numbe
   return value;
 }
 
+function normalizeNonNegativeNumber(value: unknown, field: string, fallback: number): number {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (!isFiniteNumber(value) || value < 0) {
+    throw new Error(`${field} must be zero or greater.`);
+  }
+  return value;
+}
+
+function normalizeOptionalPositiveInteger(value: unknown, field: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isFiniteNumber(value) || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`${field} must be a positive integer.`);
+  }
+  return value;
+}
+
 function normalizeSeverity(value: unknown, field: string, fallback: Severity): Severity {
   if (value === undefined) {
     return fallback;
@@ -336,6 +592,24 @@ function normalizeEnum<T extends string>(
     throw new Error(`${field} is not supported.`);
   }
   return value as T;
+}
+
+function normalizeEnumArray<T extends string>(
+  value: unknown,
+  field: string,
+  allowed: Set<T>,
+  fallback: T[],
+): T[] {
+  if (value === undefined) {
+    return [...fallback];
+  }
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== "string" || !allowed.has(item as T))
+  ) {
+    throw new Error(`${field} contains an unsupported value.`);
+  }
+  return [...new Set(value as T[])];
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -8,6 +8,7 @@ import { sortIssues } from "./severity";
 import type {
   AttentionCenterCardConfig,
   AttentionIssue,
+  AttentionDiagnostic,
   EvaluationContext,
   EvaluationPlan,
   HomeAssistant,
@@ -17,6 +18,12 @@ import type {
 
 export interface EvaluationOptions {
   ruleDurationMemory?: RuleDurationMemory;
+  connectedAtMs?: number;
+}
+
+export interface EvaluationResult {
+  issues: AttentionIssue[];
+  diagnostics: AttentionDiagnostic[];
 }
 
 export function createEvaluationPlan(config: NormalizedAttentionCenterCardConfig): EvaluationPlan {
@@ -25,7 +32,8 @@ export function createEvaluationPlan(config: NormalizedAttentionCenterCardConfig
     exclusions: compileExclusions(config.exclude),
     userRules: config.rules.map((rule, index) => ({
       rule,
-      matcher: compileEntityPattern(rule.entity_id),
+      matcher: rule.entity_id ? compileEntityPattern(rule.entity_id) : undefined,
+      label: rule.label,
       index,
     })),
     staleRules: config.stale_rules.map((rule, index) => ({
@@ -39,6 +47,7 @@ export function createEvaluationPlan(config: NormalizedAttentionCenterCardConfig
 export function createRuleDurationMemory(): RuleDurationMemory {
   return {
     firstMatchedAtMs: new Map<string, number>(),
+    activeHysteresisKeys: new Set<string>(),
   };
 }
 
@@ -48,11 +57,22 @@ export function evaluateAttentionIssues(
   now = new Date(),
   options: EvaluationOptions = {},
 ): AttentionIssue[] {
+  return evaluateAttentionResult(hass, plan, now, options).issues;
+}
+
+export function evaluateAttentionResult(
+  hass: HomeAssistant,
+  plan: EvaluationPlan,
+  now = new Date(),
+  options: EvaluationOptions = {},
+): EvaluationResult {
   const context: EvaluationContext = {
     hass,
     plan,
     now,
+    connectedAtMs: options.connectedAtMs,
     ruleDurationMemory: options.ruleDurationMemory ?? createRuleDurationMemory(),
+    diagnostics: new Map(),
   };
   const issues = [
     ...detectUnavailableEntities(context),
@@ -60,7 +80,10 @@ export function evaluateAttentionIssues(
     ...detectStaleEntities(context),
     ...evaluateUserRules(context),
   ];
-  return sortIssues(dedupeIssues(issues), plan.config.reverse_age_sort);
+  return {
+    issues: sortIssues(dedupeIssues(issues), plan.config.reverse_age_sort),
+    diagnostics: [...context.diagnostics.values()],
+  };
 }
 
 export function evaluateAttentionIssuesForConfig(
@@ -71,6 +94,16 @@ export function evaluateAttentionIssuesForConfig(
 ): AttentionIssue[] {
   const normalized = normalizeConfig(config);
   return evaluateAttentionIssues(hass, createEvaluationPlan(normalized), now, options);
+}
+
+export function evaluateAttentionResultForConfig(
+  hass: HomeAssistant,
+  config: AttentionCenterCardConfig,
+  now = new Date(),
+  options: EvaluationOptions = {},
+): EvaluationResult {
+  const normalized = normalizeConfig(config);
+  return evaluateAttentionResult(hass, createEvaluationPlan(normalized), now, options);
 }
 
 function dedupeIssues(issues: AttentionIssue[]): AttentionIssue[] {

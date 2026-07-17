@@ -42,6 +42,7 @@ describe("entity exclusions", () => {
       patterns: ["sensor.*_last_seen"],
       devices: ["device-1"],
       areas: ["Kitchen"],
+      labels: [],
     });
 
     expect(isEntityExcluded("sensor.ignore_me", hass, exclusions)).toBe(true);
@@ -49,6 +50,35 @@ describe("entity exclusions", () => {
     expect(isEntityExcluded("sensor.motion_last_seen", hass, exclusions)).toBe(true);
     expect(isEntityExcluded("sensor.device_owned", hass, exclusions)).toBe(true);
     expect(isEntityExcluded("sensor.area_owned", hass, exclusions)).toBe(true);
+    expect(isEntityExcluded("sensor.keep", hass, exclusions)).toBe(false);
+  });
+
+  it("excludes labels assigned to entities or inherited from devices", () => {
+    const hass = makeHass({
+      states: {
+        "sensor.entity_labeled": entity("unavailable"),
+        "sensor.device_labeled": entity("unavailable"),
+        "sensor.keep": entity("unavailable"),
+      },
+      entities: {
+        "sensor.entity_labeled": { labels: ["ignore_attention_center"] },
+        "sensor.device_labeled": { device_id: "device-1" },
+      },
+      devices: {
+        "device-1": { id: "device-1", labels: ["ignore_attention_center"] },
+      },
+    });
+    const exclusions = compileExclusions({
+      domains: [],
+      entities: [],
+      patterns: [],
+      devices: [],
+      areas: [],
+      labels: ["ignore_attention_center"],
+    });
+
+    expect(isEntityExcluded("sensor.entity_labeled", hass, exclusions)).toBe(true);
+    expect(isEntityExcluded("sensor.device_labeled", hass, exclusions)).toBe(true);
     expect(isEntityExcluded("sensor.keep", hass, exclusions)).toBe(false);
   });
 });
