@@ -1,6 +1,6 @@
 {
   "name": "ha-attention-center-card",
-  "version": "0.2.0",
+  "version": "0.2.0-beta.1",
   "description": "A Home Assistant Lovelace card that surfaces entities needing attention as a prioritized exception list.",
   "type": "module",
   "license": "MIT",

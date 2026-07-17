@@ -10,7 +10,6 @@ import type {
   ExclusionConfig,
   GroupBy,
   HomeAssistant,
-  InclusionConfig,
   IssueSource,
   Severity,
   StaleRule,
@@ -291,11 +290,14 @@ export class AttentionCenterCardEditor extends LitElement {
 
         <div class="section">
           <label for="include-labels">Included labels</label>
-          <textarea
+          <ha-selector
             id="include-labels"
-            .value=${linesToText(include.labels)}
-            @change=${(event: InputEvent) => this._setIncludeLines("labels", inputValue(event))}
-          ></textarea>
+            .hass=${this.hass}
+            .selector=${{ label: { multiple: true } }}
+            .value=${include.labels}
+            @value-changed=${(event: CustomEvent<{ value?: string | string[] }>) =>
+              this._setIncludeLabels(labelValues(event))}
+          ></ha-selector>
         </div>
 
         <div class="section">
@@ -327,11 +329,14 @@ export class AttentionCenterCardEditor extends LitElement {
 
         <div class="section">
           <label for="exclude-labels">Excluded labels</label>
-          <textarea
+          <ha-selector
             id="exclude-labels"
-            .value=${linesToText(exclude.labels)}
-            @change=${(event: InputEvent) => this._setExcludeLines("labels", inputValue(event))}
-          ></textarea>
+            .hass=${this.hass}
+            .selector=${{ label: { multiple: true } }}
+            .value=${exclude.labels}
+            @value-changed=${(event: CustomEvent<{ value?: string | string[] }>) =>
+              this._setExcludeLabels(labelValues(event))}
+          ></ha-selector>
         </div>
 
         <div class="section">
@@ -500,13 +505,24 @@ export class AttentionCenterCardEditor extends LitElement {
     });
   }
 
-  private _setIncludeLines(key: keyof InclusionConfig, value: string): void {
+  private _setIncludeLabels(labels: string[]): void {
     this._emitConfig({
       ...this._config,
       include: {
         ...DEFAULT_CONFIG.include,
         ...this._config.include,
-        [key]: textToLines(value),
+        labels,
+      },
+    });
+  }
+
+  private _setExcludeLabels(labels: string[]): void {
+    this._emitConfig({
+      ...this._config,
+      exclude: {
+        ...DEFAULT_CONFIG.exclude,
+        ...this._config.exclude,
+        labels,
       },
     });
   }
@@ -591,6 +607,11 @@ function inputValue(event: InputEvent): string {
     target instanceof HTMLSelectElement
     ? target.value
     : "";
+}
+
+function labelValues(event: CustomEvent<{ value?: string | string[] }>): string[] {
+  const value = event.detail.value;
+  return Array.isArray(value) ? value : value ? [value] : [];
 }
 
 function checkedValue(event: InputEvent): boolean {

@@ -32,20 +32,20 @@ export function prepareIssuePresentation(
     issues.filter((issue) => severityFilter.has(issue.severity) && sourceFilter.has(issue.source)),
     config.reverse_age_sort,
   );
+  const visibleIssues = matchingIssues.slice(0, config.max_issues ?? matchingIssues.length);
   const allGroups = groupIssues(matchingIssues, config.group_by, config.reverse_age_sort);
-  let remaining = config.max_issues ?? Number.POSITIVE_INFINITY;
-  const groups: IssueGroup[] = [];
-  const visibleIssues: AttentionIssue[] = [];
-
-  for (const group of allGroups) {
-    const visible = group.issues.slice(0, remaining);
-    remaining -= visible.length;
-    if (visible.length === 0) {
-      continue;
-    }
-    groups.push({ ...group, issues: visible });
-    visibleIssues.push(...visible);
-  }
+  const visibleGroups = new Map(
+    groupIssues(visibleIssues, config.group_by, config.reverse_age_sort).map((group) => [
+      group.key,
+      group,
+    ]),
+  );
+  const groups = allGroups.flatMap((group) => {
+    const visibleGroup = visibleGroups.get(group.key);
+    return visibleGroup && visibleGroup.issues.length > 0
+      ? [{ ...group, issues: visibleGroup.issues }]
+      : [];
+  });
 
   return {
     matchingIssues,

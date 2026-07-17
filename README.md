@@ -2,7 +2,7 @@
 
 Attention Center is a frontend-only Home Assistant custom Lovelace card that finds entities needing attention and presents them as a prioritized, filterable issue list.
 
-Version 0.2 adds label targeting, accessible issue groups, filters and limits, dynamic thresholds, numeric hysteresis, inline actions, and separate unknown/unavailable policies. It does not require a custom integration, backend service, cloud API, Node-RED, card-mod, browser_mod, Mushroom, or auto-entities.
+Version 0.2.0-beta.1 adds label targeting, accessible issue groups, filters and limits, dynamic thresholds, numeric hysteresis, inline actions, and separate unknown/unavailable policies. It does not require a custom integration, backend service, cloud API, Node-RED, card-mod, browser_mod, Mushroom, or auto-entities.
 
 ## Installation With HACS
 
@@ -59,7 +59,7 @@ exclude:
 
 The same configuration is available at [`examples/version-0.1.yaml`](examples/version-0.1.yaml).
 
-## Version 0.2 Example
+## Version 0.2 Beta Example
 
 A complete beta configuration is available at [`examples/version-0.2.yaml`](examples/version-0.2.yaml).
 
@@ -105,7 +105,7 @@ show_sources:
 max_issues: 20
 ```
 
-Supported grouping modes are `none`, `severity`, `area`, `source`, and `device`. Groups have accessible headings and active counts. `collapsed_groups` accepts the displayed area name, severity/source key, or device ID. Filtering occurs before grouping. Summary counts include every filtered issue before `max_issues` is applied, and the card reports how many issues the limit hides.
+Supported grouping modes are `none`, `severity`, `area`, `source`, and `device`. Groups have accessible headings and active counts. `collapsed_groups` accepts the displayed area name, severity/source key, or device ID. Filtering and global priority sorting happen before `max_issues`; the selected issues are then grouped for display. Summary counts and group totals include every filtered issue, and the card reports how many issues the limit hides.
 
 ### Dynamic Thresholds
 
@@ -227,7 +227,7 @@ Direct entity-state `state` and `not_state` durations initialize from `last_chan
 
 ## Visual Editor
 
-The visual editor supports grouping, maximum issue count, severity/source filters, availability settings, dynamic battery threshold entities, label inclusion/exclusion, and initially collapsed groups. Home Assistant entity selectors are used for dynamic battery references. Advanced rules, hysteresis, and actions remain in the JSON rule editor. Unknown or advanced configuration keys are preserved when common controls are edited, and validation errors are shown instead of silently dropping invalid values.
+The visual editor supports grouping, maximum issue count, severity/source filters, availability settings, dynamic battery threshold entities, label inclusion/exclusion, and initially collapsed groups. Home Assistant entity selectors are used for dynamic battery references, and multi-label selectors store stable label IDs for inclusion and exclusion. Advanced rules, hysteresis, and actions remain in the JSON rule editor. Unknown or advanced configuration keys are preserved when common controls are edited, and validation errors are shown instead of silently dropping invalid values.
 
 ## Registry and Frontend Limitations
 
@@ -253,4 +253,4 @@ The production build writes `dist/ha-attention-center-card.js` and copies the HA
 
 ## Roadmap
 
-Persistent acknowledgements and snoozing are intentionally deferred to a future backend-enabled release. That release may also explore notifications, issue history, maintenance records, and deeper Home Assistant integration. Version 0.2 remains frontend-only and does not implement any of those features.
+Persistent acknowledgements and snoozing are intentionally deferred to a future backend-enabled release. That release may also explore notifications, issue history, maintenance records, and deeper Home Assistant integration. Version 0.2.0-beta.1 remains frontend-only and does not implement any of those features.

@@ -82,14 +82,58 @@ describe("issue presentation", () => {
     ]);
   });
 
-  it("respects reverse age sorting within a group", () => {
-    const config = normalizeConfig({ group_by: "source", reverse_age_sort: true });
+  it("selects a critical issue before warnings in an alphabetically earlier area", () => {
+    const config = normalizeConfig({ group_by: "area", max_issues: 2 });
+    const presentation = prepareIssuePresentation(
+      [
+        issue("warning-old", "warning", "rule", 1000, "Alpha"),
+        issue("warning-new", "warning", "rule", 2000, "Alpha"),
+        issue("critical", "critical", "rule", 3000, "Zulu"),
+      ],
+      config,
+    );
+
+    expect(presentation.visibleIssues.map((item) => item.id)).toEqual(["critical", "warning-old"]);
+    expect(
+      presentation.groups.map((group) => [group.label, group.total, group.issues.length]),
+    ).toEqual([
+      ["Alpha", 2, 1],
+      ["Zulu", 1, 1],
+    ]);
+    expect(presentation.hiddenCount).toBe(1);
+  });
+
+  it("selects a critical rule issue before lower-severity built-in sources", () => {
+    const config = normalizeConfig({ group_by: "source", max_issues: 1 });
+    const presentation = prepareIssuePresentation(
+      [
+        issue("unavailable", "warning", "unavailable", 1000),
+        issue("battery", "warning", "battery", 1000),
+        issue("stale", "warning", "stale", 1000),
+        issue("rule", "critical", "rule", 2000),
+      ],
+      config,
+    );
+
+    expect(presentation.visibleIssues.map((item) => item.id)).toEqual(["rule"]);
+    expect(presentation.groups.map((group) => [group.key, group.total])).toEqual([["rule", 1]]);
+    expect(presentation.hiddenCount).toBe(3);
+  });
+
+  it("respects reverse age sorting within equal severity before applying the limit", () => {
+    const config = normalizeConfig({
+      group_by: "source",
+      reverse_age_sort: true,
+      max_issues: 1,
+    });
     const presentation = prepareIssuePresentation(
       [issue("old", "warning", "rule", 1000), issue("new", "warning", "rule", 3000)],
       config,
     );
 
-    expect(presentation.groups[0]?.issues.map((item) => item.id)).toEqual(["new", "old"]);
+    expect(presentation.visibleIssues.map((item) => item.id)).toEqual(["new"]);
+    expect(presentation.groups[0]).toMatchObject({ key: "rule", total: 2 });
+    expect(presentation.groups[0]?.issues.map((item) => item.id)).toEqual(["new"]);
   });
 });
 
