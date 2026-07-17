@@ -2,12 +2,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   build: {
-    emptyOutDir: true,
     lib: {
       entry: "src/index.ts",
       formats: ["es"],
-      fileName: () => "attention-center-card.js",
+      fileName: () => "ha-attention-center-card.js",
     },
+    emptyOutDir: true,
     outDir: "dist",
     rollupOptions: {
       output: {

@@ -288,6 +288,12 @@ export const editorStyles = css`
     gap: 12px;
   }
 
+  .error {
+    color: var(--error-color, #db4437);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
   @media (max-width: 520px) {
     .row {
       grid-template-columns: 1fr;

@@ -167,8 +167,13 @@ export interface EvaluationPlan {
   staleRules: CompiledStaleRule[];
 }
 
+export interface RuleDurationMemory {
+  firstMatchedAtMs: Map<string, number>;
+}
+
 export interface EvaluationContext {
   hass: HomeAssistant;
   plan: EvaluationPlan;
   now: Date;
+  ruleDurationMemory: RuleDurationMemory;
 }

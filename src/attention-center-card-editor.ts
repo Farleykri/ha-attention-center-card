@@ -28,6 +28,12 @@ export class AttentionCenterCardEditor extends LitElement {
   @state()
   private _staleRulesText = "[]";
 
+  @state()
+  private _rulesError?: string;
+
+  @state()
+  private _staleRulesError?: string;
+
   public setConfig(config: AttentionCenterCardConfig): void {
     this._config = {
       ...DEFAULT_CONFIG,
@@ -39,6 +45,8 @@ export class AttentionCenterCardEditor extends LitElement {
     };
     this._rulesText = stringifyJson(this._config.rules ?? []);
     this._staleRulesText = stringifyJson(this._config.stale_rules ?? []);
+    this._rulesError = undefined;
+    this._staleRulesError = undefined;
   }
 
   protected override render(): TemplateResult {
@@ -169,10 +177,11 @@ export class AttentionCenterCardEditor extends LitElement {
             id="stale-rules"
             .value=${this._staleRulesText}
             @input=${(event: InputEvent) => {
-              this._staleRulesText = inputValue(event);
+              this._setJsonText("stale_rules", inputValue(event));
             }}
             @change=${() => this._setJsonRules("stale_rules", this._staleRulesText)}
           ></textarea>
+          ${this._renderJsonError(this._staleRulesError)}
         </div>
 
         <div class="section">
@@ -181,10 +190,11 @@ export class AttentionCenterCardEditor extends LitElement {
             id="rules"
             .value=${this._rulesText}
             @input=${(event: InputEvent) => {
-              this._rulesText = inputValue(event);
+              this._setJsonText("rules", inputValue(event));
             }}
             @change=${() => this._setJsonRules("rules", this._rulesText)}
           ></textarea>
+          ${this._renderJsonError(this._rulesError)}
         </div>
       </div>
     `;
@@ -205,6 +215,13 @@ export class AttentionCenterCardEditor extends LitElement {
         />
       </label>
     `;
+  }
+
+  private _renderJsonError(error: string | undefined): TemplateResult | string {
+    if (!error) {
+      return "";
+    }
+    return html`<div class="error" role="alert" aria-live="polite">${error}</div>`;
   }
 
   private _setConfigValue<Key extends keyof AttentionCenterCardConfig>(
@@ -228,14 +245,29 @@ export class AttentionCenterCardEditor extends LitElement {
     });
   }
 
+  private _setJsonText(key: "rules" | "stale_rules", text: string): void {
+    if (key === "rules") {
+      this._rulesText = text;
+      this._rulesError = parseJsonArray(text).error;
+    } else {
+      this._staleRulesText = text;
+      this._staleRulesError = parseJsonArray(text).error;
+    }
+  }
+
   private _setJsonRules(key: "rules" | "stale_rules", text: string): void {
     const parsed = parseJsonArray(text);
-    if (!parsed) {
+    if (key === "rules") {
+      this._rulesError = parsed.error;
+    } else {
+      this._staleRulesError = parsed.error;
+    }
+    if (parsed.error) {
       return;
     }
     this._emitConfig({
       ...this._config,
-      [key]: parsed,
+      [key]: parsed.value,
     });
   }
 
@@ -285,12 +317,20 @@ function stringifyJson(value: UserRule[] | StaleRule[]): string {
   return JSON.stringify(value, null, 2);
 }
 
-function parseJsonArray(text: string): UserRule[] | StaleRule[] | undefined {
+function parseJsonArray(text: string): {
+  value?: UserRule[] | StaleRule[];
+  error?: string;
+} {
   try {
     const parsed: unknown = JSON.parse(text.trim() || "[]");
-    return Array.isArray(parsed) ? (parsed as UserRule[] | StaleRule[]) : undefined;
-  } catch {
-    return undefined;
+    if (!Array.isArray(parsed)) {
+      return { error: "Value must be a JSON array." };
+    }
+    return { value: parsed as UserRule[] | StaleRule[] };
+  } catch (error) {
+    return {
+      error: `Invalid JSON: ${error instanceof Error ? error.message : "Unable to parse value."}`,
+    };
   }
 }
 

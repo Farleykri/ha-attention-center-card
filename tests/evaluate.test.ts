@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeConfig } from "../src/config";
-import { evaluateAttentionIssuesForConfig } from "../src/evaluate";
+import { createRuleDurationMemory, evaluateAttentionIssuesForConfig } from "../src/evaluate";
 import { entity, makeHass } from "./mock-hass";
 
 const NOW = new Date("2026-07-17T12:00:00.000Z");
@@ -163,6 +163,64 @@ describe("stale detection", () => {
     ]);
     expect(issues[0]?.message).toBe("No update for 6h");
   });
+
+  it("lets explicit stale rules override global stale detection", () => {
+    const hass = makeHass({
+      states: {
+        "sensor.temperature": entity(
+          "70",
+          {},
+          "2026-07-16T00:00:00.000Z",
+          "2026-07-16T00:00:00.000Z",
+        ),
+        "sensor.pressure": entity("30", {}, "2026-07-16T00:00:00.000Z", "2026-07-16T00:00:00.000Z"),
+      },
+    });
+
+    const issues = evaluateAttentionIssuesForConfig(
+      hass,
+      {
+        detect_unavailable: false,
+        detect_batteries: false,
+        detect_stale: true,
+        stale_hours: 12,
+        stale_rules: [{ entity_id: "sensor.temperature", hours: 48 }],
+      },
+      NOW,
+    );
+
+    expect(issues.map((issue) => issue.entity_id)).toEqual(["sensor.pressure"]);
+  });
+
+  it("emits only one stale issue when explicit stale rules overlap", () => {
+    const hass = makeHass({
+      states: {
+        "sensor.basement_temperature": entity(
+          "70",
+          {},
+          "2026-07-17T00:00:00.000Z",
+          "2026-07-17T00:00:00.000Z",
+        ),
+      },
+    });
+
+    const issues = evaluateAttentionIssuesForConfig(
+      hass,
+      {
+        detect_unavailable: false,
+        detect_batteries: false,
+        stale_rules: [
+          { entity_id: "sensor.basement_temperature", hours: 6, title: "Exact stale" },
+          { entity_id: "sensor.*_temperature", hours: 6, title: "Pattern stale" },
+        ],
+      },
+      NOW,
+    );
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.title).toBe("Exact stale");
+    expect(issues[0]?.id).toBe("stale:sensor.basement_temperature");
+  });
 });
 
 describe("user rules", () => {
@@ -232,26 +290,116 @@ describe("user rules", () => {
     ]);
   });
 
-  it("requires duration rules to be active long enough", () => {
+  it("requires duration rules to be active from the in-memory first match", () => {
+    const memory = createRuleDurationMemory();
     const hass = makeHass({
       states: {
-        "binary_sensor.old_open": entity("on", {}, "2026-07-17T11:40:00.000Z"),
-        "binary_sensor.new_open": entity("on", {}, "2026-07-17T11:55:00.000Z"),
+        "binary_sensor.old_open": entity("on", {}, "2026-07-17T11:00:00.000Z"),
+      },
+    });
+    const config = {
+      detect_unavailable: false,
+      detect_batteries: false,
+      rules: [{ entity_id: "binary_sensor.old_open", state: "on", for_minutes: 15 }],
+    };
+
+    const firstIssues = evaluateAttentionIssuesForConfig(hass, config, NOW, {
+      ruleDurationMemory: memory,
+    });
+    const laterIssues = evaluateAttentionIssuesForConfig(
+      hass,
+      config,
+      new Date("2026-07-17T12:16:00.000Z"),
+      { ruleDurationMemory: memory },
+    );
+
+    expect(firstIssues).toHaveLength(0);
+    expect(laterIssues.map((issue) => issue.entity_id)).toEqual(["binary_sensor.old_open"]);
+    expect(laterIssues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T12:15:00.000Z"));
+  });
+
+  it("uses in-memory duration tracking for numeric rules", () => {
+    const memory = createRuleDurationMemory();
+    const config = {
+      detect_unavailable: false,
+      detect_batteries: false,
+      rules: [{ entity_id: "sensor.basement_humidity", above: 65, for_minutes: 15 }],
+    };
+    const hass = makeHass({
+      states: {
+        "sensor.basement_humidity": entity("70", {}, "2026-07-17T08:00:00.000Z"),
       },
     });
 
+    expect(
+      evaluateAttentionIssuesForConfig(hass, config, NOW, { ruleDurationMemory: memory }),
+    ).toHaveLength(0);
+
     const issues = evaluateAttentionIssuesForConfig(
       hass,
-      {
-        detect_unavailable: false,
-        detect_batteries: false,
-        rules: [{ entity_id: "binary_sensor.*_open", state: "on", for_minutes: 15 }],
-      },
-      NOW,
+      config,
+      new Date("2026-07-17T12:16:00.000Z"),
+      { ruleDurationMemory: memory },
     );
 
-    expect(issues.map((issue) => issue.entity_id)).toEqual(["binary_sensor.old_open"]);
-    expect(issues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T11:55:00.000Z"));
+    expect(issues.map((issue) => issue.entity_id)).toEqual(["sensor.basement_humidity"]);
+    expect(issues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T12:15:00.000Z"));
+  });
+
+  it("resets duration tracking when an attribute condition stops matching", () => {
+    const memory = createRuleDurationMemory();
+    const config = {
+      detect_unavailable: false,
+      detect_batteries: false,
+      rules: [
+        {
+          entity_id: "climate.first_floor",
+          attribute: "hvac_action",
+          state: "cooling",
+          for_minutes: 15,
+        },
+      ],
+    };
+
+    const cooling = makeHass({
+      states: {
+        "climate.first_floor": entity("cool", { hvac_action: "cooling" }),
+      },
+    });
+    const idle = makeHass({
+      states: {
+        "climate.first_floor": entity("cool", { hvac_action: "idle" }),
+      },
+    });
+
+    expect(
+      evaluateAttentionIssuesForConfig(cooling, config, NOW, { ruleDurationMemory: memory }),
+    ).toHaveLength(0);
+    expect(
+      evaluateAttentionIssuesForConfig(idle, config, new Date("2026-07-17T12:10:00.000Z"), {
+        ruleDurationMemory: memory,
+      }),
+    ).toHaveLength(0);
+    expect(
+      evaluateAttentionIssuesForConfig(cooling, config, new Date("2026-07-17T12:10:00.000Z"), {
+        ruleDurationMemory: memory,
+      }),
+    ).toHaveLength(0);
+    expect(
+      evaluateAttentionIssuesForConfig(cooling, config, new Date("2026-07-17T12:24:00.000Z"), {
+        ruleDurationMemory: memory,
+      }),
+    ).toHaveLength(0);
+
+    const issues = evaluateAttentionIssuesForConfig(
+      cooling,
+      config,
+      new Date("2026-07-17T12:26:00.000Z"),
+      { ruleDurationMemory: memory },
+    );
+
+    expect(issues.map((issue) => issue.entity_id)).toEqual(["climate.first_floor"]);
+    expect(issues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T12:25:00.000Z"));
   });
 
   it("ignores missing entities", () => {
@@ -275,6 +423,34 @@ describe("configuration validation", () => {
   it("rejects invalid battery thresholds", () => {
     expect(() => normalizeConfig({ battery_warning: 20, battery_critical: 20 })).toThrow(
       /battery_critical/,
+    );
+  });
+
+  it("rejects invalid resolved battery threshold overrides", () => {
+    expect(() =>
+      normalizeConfig({
+        battery_warning: 30,
+        battery_critical: 15,
+        battery_thresholds: {
+          "sensor.too_low_battery": 10,
+        },
+      }),
+    ).toThrow(/critical must resolve lower than warning/);
+
+    expect(() =>
+      normalizeConfig({
+        battery_warning: 30,
+        battery_critical: 15,
+        battery_thresholds: {
+          "sensor.too_critical_battery": { critical: 40 },
+        },
+      }),
+    ).toThrow(/critical must resolve lower than warning/);
+  });
+
+  it("rejects non-boolean boolean options", () => {
+    expect(() => normalizeConfig({ detect_batteries: "true" as unknown as boolean })).toThrow(
+      /detect_batteries/,
     );
   });
 

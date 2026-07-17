@@ -6,10 +6,22 @@ const HOUR_MS = 60 * 60 * 1000;
 
 export function detectStaleEntities(context: EvaluationContext): AttentionIssue[] {
   const issues: AttentionIssue[] = [];
-  const seen = new Set<string>();
+  const seenEntityIds = new Set<string>();
+  const explicitEntityIds = new Set<string>();
+
+  for (const compiledRule of context.plan.staleRules) {
+    const entityIds = getMatchingEntityIds(context.hass, compiledRule.matcher);
+    for (const entityId of entityIds) {
+      explicitEntityIds.add(entityId);
+      addStaleIssueForRule(context, entityId, compiledRule.rule, issues, seenEntityIds);
+    }
+  }
 
   if (context.plan.config.detect_stale) {
     for (const entityId of Object.keys(context.hass.states)) {
+      if (explicitEntityIds.has(entityId)) {
+        continue;
+      }
       addStaleIssueForRule(
         context,
         entityId,
@@ -19,22 +31,7 @@ export function detectStaleEntities(context: EvaluationContext): AttentionIssue[
           severity: "warning",
         },
         issues,
-        seen,
-        "global",
-      );
-    }
-  }
-
-  for (const compiledRule of context.plan.staleRules) {
-    const entityIds = getMatchingEntityIds(context.hass, compiledRule.matcher);
-    for (const entityId of entityIds) {
-      addStaleIssueForRule(
-        context,
-        entityId,
-        compiledRule.rule,
-        issues,
-        seen,
-        `rule:${compiledRule.index}`,
+        seenEntityIds,
       );
     }
   }
@@ -47,11 +44,10 @@ function addStaleIssueForRule(
   entityId: string,
   rule: StaleRule,
   issues: AttentionIssue[],
-  seen: Set<string>,
-  idPrefix: string,
+  seenEntityIds: Set<string>,
 ): void {
   if (
-    seen.has(`${idPrefix}:${entityId}`) ||
+    seenEntityIds.has(entityId) ||
     isEntityExcluded(entityId, context.hass, context.plan.exclusions)
   ) {
     return;
@@ -73,7 +69,7 @@ function addStaleIssueForRule(
     return;
   }
 
-  seen.add(`${idPrefix}:${entityId}`);
+  seenEntityIds.add(entityId);
   issues.push(
     createIssue({
       hass: context.hass,
@@ -83,7 +79,7 @@ function addStaleIssueForRule(
       message: `No update for ${formatHours(rule.hours)}`,
       activeSinceMs: staleSinceMs,
       source: "stale",
-      id: `stale:${idPrefix}:${entityId}`,
+      id: `stale:${entityId}`,
     }),
   );
 }

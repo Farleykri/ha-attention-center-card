@@ -2,7 +2,11 @@ import { LitElement, html, nothing, type PropertyValues, type TemplateResult } f
 import { customElement, property, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 import { DEFAULT_CONFIG, configKey, normalizeConfig } from "./config";
-import { createEvaluationPlan, evaluateAttentionIssues } from "./evaluate";
+import {
+  createEvaluationPlan,
+  createRuleDurationMemory,
+  evaluateAttentionIssues,
+} from "./evaluate";
 import { formatDurationSince } from "./duration";
 import { countBySeverity } from "./severity";
 import { cardStyles } from "./styles";
@@ -33,6 +37,14 @@ export class AttentionCenterCard extends LitElement {
   private _configKey = "";
   private _lastConfigKey = "";
   private _lastStatesRef?: HomeAssistant["states"];
+  private _lastEntitiesRef?: HomeAssistant["entities"];
+  private _lastDevicesRef?: HomeAssistant["devices"];
+  private _lastAreasRef?: HomeAssistant["areas"];
+  private _ruleDurationMemory = createRuleDurationMemory();
+  private _minuteTimer?: number;
+
+  @state()
+  private _nowMs = Date.now();
 
   public setConfig(config: AttentionCenterCardConfig): void {
     const normalized = normalizeConfig(config);
@@ -41,6 +53,10 @@ export class AttentionCenterCard extends LitElement {
     this._configKey = configKey(normalized);
     this._lastConfigKey = "";
     this._lastStatesRef = undefined;
+    this._lastEntitiesRef = undefined;
+    this._lastDevicesRef = undefined;
+    this._lastAreasRef = undefined;
+    this._ruleDurationMemory = createRuleDurationMemory();
     this._recalculateIssues();
   }
 
@@ -62,13 +78,26 @@ export class AttentionCenterCard extends LitElement {
   }
 
   public getCardSize(): number {
-    if (!this._config || this._config.empty_state === "hide") {
+    if (!this._config) {
+      return 1;
+    }
+    if (this._config.empty_state === "hide" && this._issues.length === 0) {
       return 1;
     }
     if (this._config.display_mode === "summary") {
       return 2;
     }
     return Math.min(6, Math.max(2, this._issues.length + 1));
+  }
+
+  public override connectedCallback(): void {
+    super.connectedCallback();
+    this._startMinuteTimer();
+  }
+
+  public override disconnectedCallback(): void {
+    this._stopMinuteTimer();
+    super.disconnectedCallback();
   }
 
   protected override willUpdate(changedProperties: PropertyValues<this>): void {
@@ -140,7 +169,7 @@ export class AttentionCenterCard extends LitElement {
   }
 
   private _renderIssue(issue: AttentionIssue): TemplateResult {
-    const duration = formatDurationSince(issue.activeSinceMs);
+    const duration = formatDurationSince(issue.activeSinceMs, this._nowMs);
     return html`
       <button
         class="issue"
@@ -196,19 +225,50 @@ export class AttentionCenterCard extends LitElement {
     `;
   }
 
-  private _recalculateIssues(): void {
+  private _recalculateIssues(force = false): void {
     if (!this.hass || !this._plan) {
       return;
     }
 
-    if (this.hass.states === this._lastStatesRef && this._configKey === this._lastConfigKey) {
+    if (
+      !force &&
+      this.hass.states === this._lastStatesRef &&
+      this.hass.entities === this._lastEntitiesRef &&
+      this.hass.devices === this._lastDevicesRef &&
+      this.hass.areas === this._lastAreasRef &&
+      this._configKey === this._lastConfigKey
+    ) {
       return;
     }
 
+    this._nowMs = Date.now();
     // Keep the full Home Assistant state scan outside render so Lit updates only paint prepared rows.
-    this._issues = evaluateAttentionIssues(this.hass, this._plan);
+    this._issues = evaluateAttentionIssues(this.hass, this._plan, new Date(this._nowMs), {
+      ruleDurationMemory: this._ruleDurationMemory,
+    });
     this._lastStatesRef = this.hass.states;
+    this._lastEntitiesRef = this.hass.entities;
+    this._lastDevicesRef = this.hass.devices;
+    this._lastAreasRef = this.hass.areas;
     this._lastConfigKey = this._configKey;
+  }
+
+  private _startMinuteTimer(): void {
+    if (this._minuteTimer !== undefined) {
+      return;
+    }
+    this._minuteTimer = window.setInterval(() => {
+      this._nowMs = Date.now();
+      this._recalculateIssues(true);
+    }, 60_000);
+  }
+
+  private _stopMinuteTimer(): void {
+    if (this._minuteTimer === undefined) {
+      return;
+    }
+    window.clearInterval(this._minuteTimer);
+    this._minuteTimer = undefined;
   }
 
   private _openMoreInfo(entityId: string): void {

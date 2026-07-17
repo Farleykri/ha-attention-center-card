@@ -35,7 +35,7 @@ Placeholder views:
 HACS should register this resource:
 
 ```text
-/hacsfiles/ha-attention-center-card/dist/attention-center-card.js
+/hacsfiles/ha-attention-center-card/ha-attention-center-card.js
 ```
 
 ## Manual Installation
@@ -47,16 +47,16 @@ npm install
 npm run build
 ```
 
-2. Copy `dist/attention-center-card.js` to:
+2. Copy `ha-attention-center-card.js` to:
 
 ```text
-config/www/community/ha-attention-center-card/attention-center-card.js
+config/www/community/ha-attention-center-card/ha-attention-center-card.js
 ```
 
 3. Add a Lovelace resource:
 
 ```yaml
-url: /local/community/ha-attention-center-card/attention-center-card.js
+url: /local/community/ha-attention-center-card/ha-attention-center-card.js
 type: module
 ```
 
@@ -265,6 +265,7 @@ Advanced stale rules and user rules can be edited as JSON arrays in the visual e
 ```bash
 npm install
 npm run format
+npm run typecheck
 npm run lint
 npm run test
 npm run build
@@ -273,7 +274,7 @@ npm run build
 During development, add this resource in Home Assistant after building:
 
 ```yaml
-url: /local/community/ha-attention-center-card/attention-center-card.js
+url: /local/community/ha-attention-center-card/ha-attention-center-card.js
 type: module
 ```
 

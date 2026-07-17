@@ -12,7 +12,12 @@ import type {
   EvaluationPlan,
   HomeAssistant,
   NormalizedAttentionCenterCardConfig,
+  RuleDurationMemory,
 } from "./types";
+
+export interface EvaluationOptions {
+  ruleDurationMemory?: RuleDurationMemory;
+}
 
 export function createEvaluationPlan(config: NormalizedAttentionCenterCardConfig): EvaluationPlan {
   return {
@@ -31,12 +36,24 @@ export function createEvaluationPlan(config: NormalizedAttentionCenterCardConfig
   };
 }
 
+export function createRuleDurationMemory(): RuleDurationMemory {
+  return {
+    firstMatchedAtMs: new Map<string, number>(),
+  };
+}
+
 export function evaluateAttentionIssues(
   hass: HomeAssistant,
   plan: EvaluationPlan,
   now = new Date(),
+  options: EvaluationOptions = {},
 ): AttentionIssue[] {
-  const context: EvaluationContext = { hass, plan, now };
+  const context: EvaluationContext = {
+    hass,
+    plan,
+    now,
+    ruleDurationMemory: options.ruleDurationMemory ?? createRuleDurationMemory(),
+  };
   const issues = [
     ...detectUnavailableEntities(context),
     ...detectLowBatteries(context),
@@ -50,9 +67,10 @@ export function evaluateAttentionIssuesForConfig(
   hass: HomeAssistant,
   config: AttentionCenterCardConfig,
   now = new Date(),
+  options: EvaluationOptions = {},
 ): AttentionIssue[] {
   const normalized = normalizeConfig(config);
-  return evaluateAttentionIssues(hass, createEvaluationPlan(normalized), now);
+  return evaluateAttentionIssues(hass, createEvaluationPlan(normalized), now, options);
 }
 
 function dedupeIssues(issues: AttentionIssue[]): AttentionIssue[] {
