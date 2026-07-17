@@ -75,7 +75,7 @@ const { is: Se, defineProperty: xe, getOwnPropertyDescriptor: Ce, getOwnProperty
   return i;
 } }, bt = (e, t) => !Se(e, t), Tt = { attribute: !0, type: String, converter: tt, reflect: !1, useDefault: !1, hasChanged: bt };
 Symbol.metadata ?? (Symbol.metadata = Symbol("metadata")), w.litPropertyMetadata ?? (w.litPropertyMetadata = /* @__PURE__ */ new WeakMap());
-let P = class extends HTMLElement {
+let I = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ?? (this.l = [])).push(t);
   }
@@ -278,7 +278,7 @@ let P = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-P.elementStyles = [], P.shadowRootOptions = { mode: "open" }, P[B("elementProperties")] = /* @__PURE__ */ new Map(), P[B("finalized")] = /* @__PURE__ */ new Map(), at == null || at({ ReactiveElement: P }), (w.reactiveElementVersions ?? (w.reactiveElementVersions = [])).push("2.1.2");
+I.elementStyles = [], I.shadowRootOptions = { mode: "open" }, I[B("elementProperties")] = /* @__PURE__ */ new Map(), I[B("finalized")] = /* @__PURE__ */ new Map(), at == null || at({ ReactiveElement: I }), (w.reactiveElementVersions ?? (w.reactiveElementVersions = [])).push("2.1.2");
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -286,18 +286,18 @@ P.elementStyles = [], P.shadowRootOptions = { mode: "open" }, P[B("elementProper
  */
 const V = globalThis, Rt = (e) => e, et = V.trustedTypes, Ot = et ? et.createPolicy("lit-html", { createHTML: (e) => e }) : void 0, ee = "$lit$", b = `lit$${Math.random().toFixed(9).slice(2)}$`, ie = "?" + b, Pe = `<${ie}>`, M = document, J = () => M.createComment(""), K = (e) => e === null || typeof e != "object" && typeof e != "function", wt = Array.isArray, Ie = (e) => wt(e) || typeof (e == null ? void 0 : e[Symbol.iterator]) == "function", lt = `[ 	
 \f\r]`, z = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, Pt = /-->/g, It = />/g, A = RegExp(`>|${lt}(?:([^\\s"'>=/]+)(${lt}*=${lt}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), Nt = /'/g, Dt = /"/g, re = /^(?:script|style|textarea|title)$/i, Ne = (e) => (t, ...i) => ({ _$litType$: e, strings: t, values: i }), g = Ne(1), T = Symbol.for("lit-noChange"), _ = Symbol.for("lit-nothing"), Ut = /* @__PURE__ */ new WeakMap(), S = M.createTreeWalker(M, 129);
+\f\r"'\`<>=]|("|')|))|$)`, "g"), Dt = /'/g, Nt = /"/g, re = /^(?:script|style|textarea|title)$/i, De = (e) => (t, ...i) => ({ _$litType$: e, strings: t, values: i }), g = De(1), T = Symbol.for("lit-noChange"), _ = Symbol.for("lit-nothing"), Ut = /* @__PURE__ */ new WeakMap(), S = M.createTreeWalker(M, 129);
 function se(e, t) {
   if (!wt(e) || !e.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return Ot !== void 0 ? Ot.createHTML(t) : t;
 }
-const De = (e, t) => {
+const Ne = (e, t) => {
   const i = e.length - 1, s = [];
   let r, n = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", o = z;
   for (let a = 0; a < i; a++) {
     const l = e[a];
     let u, d, c = -1, p = 0;
-    for (; p < l.length && (o.lastIndex = p, d = o.exec(l), d !== null); ) p = o.lastIndex, o === z ? d[1] === "!--" ? o = Pt : d[1] !== void 0 ? o = It : d[2] !== void 0 ? (re.test(d[2]) && (r = RegExp("</" + d[2], "g")), o = A) : d[3] !== void 0 && (o = A) : o === A ? d[0] === ">" ? (o = r ?? z, c = -1) : d[1] === void 0 ? c = -2 : (c = o.lastIndex - d[2].length, u = d[1], o = d[3] === void 0 ? A : d[3] === '"' ? Dt : Nt) : o === Dt || o === Nt ? o = A : o === Pt || o === It ? o = z : (o = A, r = void 0);
+    for (; p < l.length && (o.lastIndex = p, d = o.exec(l), d !== null); ) p = o.lastIndex, o === z ? d[1] === "!--" ? o = Pt : d[1] !== void 0 ? o = It : d[2] !== void 0 ? (re.test(d[2]) && (r = RegExp("</" + d[2], "g")), o = A) : d[3] !== void 0 && (o = A) : o === A ? d[0] === ">" ? (o = r ?? z, c = -1) : d[1] === void 0 ? c = -2 : (c = o.lastIndex - d[2].length, u = d[1], o = d[3] === void 0 ? A : d[3] === '"' ? Nt : Dt) : o === Nt || o === Dt ? o = A : o === Pt || o === It ? o = z : (o = A, r = void 0);
     const h = o === A && e[a + 1].startsWith("/>") ? " " : "";
     n += o === z ? l + Pe : c >= 0 ? (s.push(u), l.slice(0, c) + ee + l.slice(c) + b + h) : l + b + (c === -2 ? a : h);
   }
@@ -308,7 +308,7 @@ class q {
     let r;
     this.parts = [];
     let n = 0, o = 0;
-    const a = t.length - 1, l = this.parts, [u, d] = De(t, i);
+    const a = t.length - 1, l = this.parts, [u, d] = Ne(t, i);
     if (this.el = q.createElement(u, s), S.currentNode = this.el.content, i === 2 || i === 3) {
       const c = this.el.content.firstChild;
       c.replaceWith(...c.childNodes);
@@ -521,7 +521,7 @@ const Be = (e, t, i) => {
  * SPDX-License-Identifier: BSD-3-Clause
  */
 const x = globalThis;
-let I = class extends P {
+let D = class extends I {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -547,9 +547,9 @@ let I = class extends P {
   }
 };
 var Qt;
-I._$litElement$ = !0, I.finalized = !0, (Qt = x.litElementHydrateSupport) == null || Qt.call(x, { LitElement: I });
+D._$litElement$ = !0, D.finalized = !0, (Qt = x.litElementHydrateSupport) == null || Qt.call(x, { LitElement: D });
 const ut = x.litElementPolyfillSupport;
-ut == null || ut({ LitElement: I });
+ut == null || ut({ LitElement: D });
 (x.litElementVersions ?? (x.litElementVersions = [])).push("4.2.2");
 /**
  * @license
@@ -598,7 +598,7 @@ function At(e) {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-function R(e) {
+function O(e) {
   return At({ ...e, state: !0, attribute: !1 });
 }
 /**
@@ -973,7 +973,7 @@ function mt(e) {
   const i = Number(t);
   return Number.isFinite(i) ? i : void 0;
 }
-function D(e) {
+function R(e) {
   if (!e)
     return;
   const t = Date.parse(e);
@@ -1021,7 +1021,7 @@ function me(e, t) {
   return typeof s == "string" ? s : void 0;
 }
 function rt(e) {
-  const t = e.hass.states[e.entityId], i = e.activeSinceMs ?? D(t == null ? void 0 : t.last_changed) ?? D(t == null ? void 0 : t.last_updated) ?? Date.now();
+  const t = e.hass.states[e.entityId], i = e.activeSinceMs ?? R(t == null ? void 0 : t.last_changed) ?? R(t == null ? void 0 : t.last_updated) ?? Date.now();
   return {
     id: e.id,
     entity_id: e.entityId,
@@ -1125,7 +1125,7 @@ function gi(e) {
         entityId: r,
         severity: l,
         message: `Battery is ${bi(o)}% (${l} below ${u}%)`,
-        activeSinceMs: D(n.last_changed),
+        activeSinceMs: R(n.last_changed),
         source: "battery",
         id: `battery:${r}`
       })
@@ -1187,7 +1187,7 @@ function Ft(e, t, i, s, r) {
   const n = e.hass.states[t];
   if (!n)
     return;
-  const o = D(n.last_updated) ?? D(n.last_changed);
+  const o = R(n.last_updated) ?? R(n.last_changed);
   if (o === void 0)
     return;
   const a = i.hours * wi, l = o + a;
@@ -1222,7 +1222,7 @@ function Si(e) {
         entityId: r,
         severity: "warning",
         message: `State is ${o}`,
-        activeSinceMs: D(n.last_changed),
+        activeSinceMs: R(n.last_changed),
         source: "unavailable",
         id: `unavailable:${r}`
       })
@@ -1236,7 +1236,7 @@ function Ci(e) {
   for (const s of e.plan.userRules) {
     const r = ve(e.hass, s.matcher);
     for (const n of r) {
-      const o = Oi(s.index, n);
+      const o = Pi(s.index, n);
       if (i.add(o), st(n, e.hass, e.plan.exclusions)) {
         e.ruleDurationMemory.firstMatchedAtMs.delete(o);
         continue;
@@ -1275,7 +1275,7 @@ function Mi(e, t, i, s, r) {
   const n = Ti(e, t);
   if (!n.matched)
     return s.firstMatchedAtMs.delete(r), { matched: !1 };
-  const o = s.firstMatchedAtMs.get(r) ?? i;
+  const o = s.firstMatchedAtMs.get(r) ?? Oi(e, t, i);
   s.firstMatchedAtMs.set(r, o);
   const a = (e.for_minutes ?? 0) * xi, l = o + a;
   return a > 0 && i < l ? { matched: !1 } : {
@@ -1316,6 +1316,9 @@ function Ti(e, t) {
 function Ri(e, t) {
   return e.attribute ? t.attributes[e.attribute] : t.state;
 }
+function Oi(e, t, i) {
+  return e.attribute === void 0 && e.above === void 0 && e.below === void 0 && (e.state !== void 0 || e.not_state !== void 0) ? R(t.last_changed) ?? i : i;
+}
 function Jt(e, t) {
   return String(e) === String(t);
 }
@@ -1325,18 +1328,18 @@ function Z(e) {
 function Kt(e) {
   return Number.isInteger(e) ? String(e) : e.toFixed(1);
 }
-function Oi(e, t) {
+function Pi(e, t) {
   return `rule:${e}:${t}`;
 }
-const Pi = {
+const Ii = {
   critical: 0,
   warning: 1,
   info: 2
 };
 function qt(e) {
-  return Pi[e];
+  return Ii[e];
 }
-function Ii(e, t = !1) {
+function Di(e, t = !1) {
   return [...e].sort((i, s) => {
     const r = qt(i.severity) - qt(s.severity);
     if (r !== 0)
@@ -1385,9 +1388,9 @@ function be(e, t, i = /* @__PURE__ */ new Date(), s = {}) {
     ...Ai(r),
     ...Ci(r)
   ];
-  return Ii(Ni(n), t.config.reverse_age_sort);
+  return Di(Ni(n), t.config.reverse_age_sort);
 }
-function Gi(e, t, i = /* @__PURE__ */ new Date(), s = {}) {
+function Zi(e, t, i = /* @__PURE__ */ new Date(), s = {}) {
   const r = ue(t);
   return be(e, $e(r), i, s);
 }
@@ -1398,7 +1401,7 @@ function Ni(e) {
   return [...t.values()];
 }
 const X = 60 * 1e3, L = 60 * X, dt = 24 * L;
-function Di(e, t = Date.now()) {
+function Ui(e, t = Date.now()) {
   const i = Math.max(0, t - e);
   if (i < X)
     return "<1m";
@@ -1411,7 +1414,7 @@ function Di(e, t = Date.now()) {
   const s = Math.floor(i / dt), r = Math.floor(i % dt / L);
   return r > 0 ? `${s}d ${r}h` : `${s}d`;
 }
-const Ui = te`
+const ki = te`
   :host {
     display: block;
   }
@@ -1636,7 +1639,7 @@ const Ui = te`
       grid-template-columns: 1fr;
     }
   }
-`, ki = te`
+`, zi = te`
   :host {
     display: block;
   }
@@ -1709,13 +1712,13 @@ const Ui = te`
     }
   }
 `;
-var zi = Object.defineProperty, Hi = Object.getOwnPropertyDescriptor, nt = (e, t, i, s) => {
-  for (var r = s > 1 ? void 0 : s ? Hi(t, i) : t, n = e.length - 1, o; n >= 0; n--)
+var Hi = Object.defineProperty, ji = Object.getOwnPropertyDescriptor, nt = (e, t, i, s) => {
+  for (var r = s > 1 ? void 0 : s ? ji(t, i) : t, n = e.length - 1, o; n >= 0; n--)
     (o = e[n]) && (r = (s ? o(t, i, r) : o(r)) || r);
-  return s && r && zi(t, i, r), r;
+  return s && r && Hi(t, i, r), r;
 };
-const we = "attention-center-card", ji = "attention-center-card-editor";
-let U = class extends I {
+const we = "attention-center-card", Li = "attention-center-card-editor";
+let U = class extends D {
   constructor() {
     super(...arguments), this._issues = [], this._configKey = "", this._lastConfigKey = "", this._ruleDurationMemory = yt(), this._nowMs = Date.now();
   }
@@ -1735,7 +1738,7 @@ let U = class extends I {
     };
   }
   static async getConfigElement() {
-    return await Promise.resolve().then(() => Ji), document.createElement(ji);
+    return await Promise.resolve().then(() => Ki), document.createElement(Li);
   }
   getCardSize() {
     return !this._config || this._config.empty_state === "hide" && this._issues.length === 0 ? 1 : this._config.display_mode === "summary" ? 2 : Math.min(6, Math.max(2, this._issues.length + 1));
@@ -1794,7 +1797,7 @@ let U = class extends I {
     `;
   }
   _renderIssue(e) {
-    const t = Di(e.activeSinceMs, this._nowMs);
+    const t = Ui(e.activeSinceMs, this._nowMs);
     return g`
       <button
         class="issue"
@@ -1871,15 +1874,15 @@ let U = class extends I {
     e.key !== "Enter" && e.key !== " " || (e.preventDefault(), this._openMoreInfo(t));
   }
 };
-U.styles = Ui;
+U.styles = ki;
 nt([
   At({ attribute: !1 })
 ], U.prototype, "hass", 2);
 nt([
-  R()
+  O()
 ], U.prototype, "_issues", 2);
 nt([
-  R()
+  O()
 ], U.prototype, "_nowMs", 2);
 U = nt([
   ne(we)
@@ -1898,12 +1901,12 @@ window.customCards.push({
   preview: !0,
   documentationURL: "https://github.com/Farleykri/ha-attention-center-card"
 });
-var Li = Object.defineProperty, Bi = Object.getOwnPropertyDescriptor, O = (e, t, i, s) => {
-  for (var r = s > 1 ? void 0 : s ? Bi(t, i) : t, n = e.length - 1, o; n >= 0; n--)
+var Bi = Object.defineProperty, Vi = Object.getOwnPropertyDescriptor, P = (e, t, i, s) => {
+  for (var r = s > 1 ? void 0 : s ? Vi(t, i) : t, n = e.length - 1, o; n >= 0; n--)
     (o = e[n]) && (r = (s ? o(t, i, r) : o(r)) || r);
-  return s && r && Li(t, i, r), r;
+  return s && r && Bi(t, i, r), r;
 };
-let y = class extends I {
+let y = class extends D {
   constructor() {
     super(...arguments), this._config = f, this._rulesText = "[]", this._staleRulesText = "[]";
   }
@@ -2069,7 +2072,7 @@ let y = class extends I {
         <input
           type="checkbox"
           .checked=${i}
-          @change=${(s) => this._setConfigValue(e, Vi(s))}
+          @change=${(s) => this._setConfigValue(e, Fi(s))}
         />
       </label>
     `;
@@ -2089,7 +2092,7 @@ let y = class extends I {
       exclude: {
         ...f.exclude,
         ...this._config.exclude,
-        [e]: Fi(t)
+        [e]: Ji(t)
       }
     });
   }
@@ -2113,33 +2116,33 @@ let y = class extends I {
     );
   }
 };
-y.styles = ki;
-O([
+y.styles = zi;
+P([
   At({ attribute: !1 })
 ], y.prototype, "hass", 2);
-O([
-  R()
+P([
+  O()
 ], y.prototype, "_config", 2);
-O([
-  R()
+P([
+  O()
 ], y.prototype, "_rulesText", 2);
-O([
-  R()
+P([
+  O()
 ], y.prototype, "_staleRulesText", 2);
-O([
-  R()
+P([
+  O()
 ], y.prototype, "_rulesError", 2);
-O([
-  R()
+P([
+  O()
 ], y.prototype, "_staleRulesError", 2);
-y = O([
+y = P([
   ne("attention-center-card-editor")
 ], y);
 function $(e) {
   const t = e.currentTarget;
   return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement ? t.value : "";
 }
-function Vi(e) {
+function Fi(e) {
   const t = e.currentTarget;
   return t instanceof HTMLInputElement ? t.checked : !1;
 }
@@ -2151,7 +2154,7 @@ function ft(e) {
   return (e ?? []).join(`
 `);
 }
-function Fi(e) {
+function Ji(e) {
   return e.split(/\r?\n/).map((t) => t.trim()).filter(Boolean);
 }
 function Zt(e) {
@@ -2167,7 +2170,7 @@ function _t(e) {
     };
   }
 }
-const Ji = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const Ki = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   get AttentionCenterCardEditor() {
     return y;
@@ -2177,6 +2180,6 @@ export {
   U as AttentionCenterCard,
   y as AttentionCenterCardEditor,
   be as evaluateAttentionIssues,
-  Gi as evaluateAttentionIssuesForConfig
+  Zi as evaluateAttentionIssuesForConfig
 };
 //# sourceMappingURL=ha-attention-center-card.js.map

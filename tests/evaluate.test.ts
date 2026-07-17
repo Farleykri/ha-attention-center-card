@@ -290,7 +290,7 @@ describe("user rules", () => {
     ]);
   });
 
-  it("requires duration rules to be active from the in-memory first match", () => {
+  it("shows an aged direct state rule immediately on a fresh evaluation", () => {
     const memory = createRuleDurationMemory();
     const hass = makeHass({
       states: {
@@ -303,22 +303,48 @@ describe("user rules", () => {
       rules: [{ entity_id: "binary_sensor.old_open", state: "on", for_minutes: 15 }],
     };
 
-    const firstIssues = evaluateAttentionIssuesForConfig(hass, config, NOW, {
+    const issues = evaluateAttentionIssuesForConfig(hass, config, NOW, {
       ruleDurationMemory: memory,
     });
-    const laterIssues = evaluateAttentionIssuesForConfig(
+
+    expect(issues.map((issue) => issue.entity_id)).toEqual(["binary_sensor.old_open"]);
+    expect(issues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T11:15:00.000Z"));
+  });
+
+  it("waits only the remaining duration for a recently changed direct state", () => {
+    const memory = createRuleDurationMemory();
+    const hass = makeHass({
+      states: {
+        "binary_sensor.recently_open": entity("on", {}, "2026-07-17T11:50:00.000Z"),
+      },
+    });
+    const config = {
+      detect_unavailable: false,
+      detect_batteries: false,
+      rules: [{ entity_id: "binary_sensor.recently_open", not_state: "off", for_minutes: 15 }],
+    };
+
+    expect(
+      evaluateAttentionIssuesForConfig(hass, config, NOW, { ruleDurationMemory: memory }),
+    ).toHaveLength(0);
+    expect(
+      evaluateAttentionIssuesForConfig(hass, config, new Date("2026-07-17T12:04:00.000Z"), {
+        ruleDurationMemory: memory,
+      }),
+    ).toHaveLength(0);
+
+    const issues = evaluateAttentionIssuesForConfig(
       hass,
       config,
-      new Date("2026-07-17T12:16:00.000Z"),
+      new Date("2026-07-17T12:05:00.000Z"),
       { ruleDurationMemory: memory },
     );
 
-    expect(firstIssues).toHaveLength(0);
-    expect(laterIssues.map((issue) => issue.entity_id)).toEqual(["binary_sensor.old_open"]);
-    expect(laterIssues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T12:15:00.000Z"));
+    expect(issues.map((issue) => issue.entity_id)).toEqual(["binary_sensor.recently_open"]);
+    expect(issues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T12:05:00.000Z"));
   });
 
-  it("uses in-memory duration tracking for numeric rules", () => {
+  it("starts numeric duration tracking at the first frontend observation", () => {
     const memory = createRuleDurationMemory();
     const config = {
       detect_unavailable: false,
@@ -344,6 +370,38 @@ describe("user rules", () => {
 
     expect(issues.map((issue) => issue.entity_id)).toEqual(["sensor.basement_humidity"]);
     expect(issues[0]?.activeSinceMs).toBe(Date.parse("2026-07-17T12:15:00.000Z"));
+  });
+
+  it("clears the stored timestamp when a condition becomes false", () => {
+    const memory = createRuleDurationMemory();
+    const config = {
+      detect_unavailable: false,
+      detect_batteries: false,
+      rules: [{ entity_id: "sensor.basement_humidity", above: 65, for_minutes: 15 }],
+    };
+    const matching = makeHass({
+      states: {
+        "sensor.basement_humidity": entity("70"),
+      },
+    });
+    const notMatching = makeHass({
+      states: {
+        "sensor.basement_humidity": entity("60"),
+      },
+    });
+
+    evaluateAttentionIssuesForConfig(matching, config, NOW, { ruleDurationMemory: memory });
+    expect([...memory.firstMatchedAtMs.values()]).toEqual([NOW.getTime()]);
+
+    evaluateAttentionIssuesForConfig(notMatching, config, new Date("2026-07-17T12:05:00.000Z"), {
+      ruleDurationMemory: memory,
+    });
+    expect(memory.firstMatchedAtMs.size).toBe(0);
+
+    evaluateAttentionIssuesForConfig(matching, config, new Date("2026-07-17T12:10:00.000Z"), {
+      ruleDurationMemory: memory,
+    });
+    expect([...memory.firstMatchedAtMs.values()]).toEqual([Date.parse("2026-07-17T12:10:00.000Z")]);
   });
 
   it("resets duration tracking when an attribute condition stops matching", () => {

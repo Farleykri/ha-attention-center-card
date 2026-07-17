@@ -1,5 +1,5 @@
 import type { AttentionIssue, EvaluationContext, HassEntity, UserRule } from "./types";
-import { createIssue, parseNumericState } from "./hass";
+import { createIssue, parseNumericState, timestampMs } from "./hass";
 import { getMatchingEntityIds, isEntityExcluded } from "./matcher";
 
 const MINUTE_MS = 60 * 1000;
@@ -70,7 +70,8 @@ export function evaluateRuleForEntity(
     return { matched: false };
   }
 
-  const firstMatchedAtMs = memory.firstMatchedAtMs.get(memoryKey) ?? nowMs;
+  const firstMatchedAtMs =
+    memory.firstMatchedAtMs.get(memoryKey) ?? initialFirstMatchedAtMs(rule, entity, nowMs);
   memory.firstMatchedAtMs.set(memoryKey, firstMatchedAtMs);
 
   const requiredMs = (rule.for_minutes ?? 0) * MINUTE_MS;
@@ -134,6 +135,16 @@ function getRuleValue(rule: UserRule, entity: HassEntity): unknown {
     return entity.state;
   }
   return entity.attributes[rule.attribute];
+}
+
+function initialFirstMatchedAtMs(rule: UserRule, entity: HassEntity, nowMs: number): number {
+  const isDirectStateRule =
+    rule.attribute === undefined &&
+    rule.above === undefined &&
+    rule.below === undefined &&
+    (rule.state !== undefined || rule.not_state !== undefined);
+
+  return isDirectStateRule ? (timestampMs(entity.last_changed) ?? nowMs) : nowMs;
 }
 
 function valuesEqual(actual: unknown, expected: string | number | boolean): boolean {
